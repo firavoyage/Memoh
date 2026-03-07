@@ -50,9 +50,7 @@ fi
 echo "${GREEN}✓ Docker and Docker Compose detected${NC}"
 
 # Resolve version: use MEMOH_VERSION env if set, otherwise fetch latest release
-VERSION_USER_PROVIDED=false
 if [ -n "$MEMOH_VERSION" ]; then
-    VERSION_USER_PROVIDED=true
     echo "${GREEN}✓ Using specified version: ${MEMOH_VERSION}${NC}"
 else
     fetch_latest_version() {
@@ -73,8 +71,8 @@ else
     fi
 fi
 
-# Docker image tag: pin to version only when user explicitly specified MEMOH_VERSION
-if [ "$VERSION_USER_PROVIDED" = true ]; then
+# Docker image tag: strip leading "v", fall back to "latest" only when version is unknown
+if [ -n "$MEMOH_VERSION" ]; then
     MEMOH_DOCKER_VERSION=$(echo "$MEMOH_VERSION" | sed 's/^v//')
 else
     MEMOH_DOCKER_VERSION="latest"
@@ -99,7 +97,7 @@ JWT_SECRET="$(gen_secret)"
 PG_PASS="memoh123"
 WORKSPACE="$WORKSPACE_DEFAULT"
 MEMOH_DATA_DIR="$MEMOH_DATA_DIR_DEFAULT"
-USE_CN_MIRROR=false
+USE_CN_MIRROR="${USE_CN_MIRROR:-false}"
 
 if [ "$SILENT" = false ]; then
   echo "Configure Memoh (press Enter to use defaults):" > /dev/tty
@@ -142,12 +140,6 @@ if [ "$SILENT" = false ]; then
   printf "  Postgres password [%s]: " "$PG_PASS" > /dev/tty
   read -r input < /dev/tty || true
   [ -n "$input" ] && PG_PASS="$input"
-
-  printf "  Use China mainland mirror? (y/N): " > /dev/tty
-  read -r input < /dev/tty || true
-  case "$input" in
-    [Yy]|[Yy][Ee][Ss]) USE_CN_MIRROR=true ;;
-  esac
 
   echo "" > /dev/tty
 fi

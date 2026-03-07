@@ -19,10 +19,11 @@ curl -fsSL https://memoh.sh | sudo sh
 The script will:
 
 1. Check for Docker and Docker Compose
-2. Prompt for configuration (workspace, data directory, admin credentials, JWT secret, Postgres password, China mirror)
-3. Clone the repository
+2. Prompt for configuration (workspace, data directory, admin credentials, JWT secret, Postgres password)
+3. Fetch the latest release tag from GitHub and clone the repository
 4. Generate `config.toml` from the Docker template with your settings
-5. Pull images and start all services
+5. Pin Docker image versions to the release
+6. Pull images and start all services
 
 **Silent install** (use all defaults, no prompts):
 
@@ -37,6 +38,20 @@ Defaults when running silently:
 - Admin: `admin` / `admin123`
 - JWT secret: auto-generated
 - Postgres password: `memoh123`
+
+**Install a specific version:**
+
+```bash
+MEMOH_VERSION=v1.0.0 curl -fsSL https://memoh.sh | sudo sh
+```
+
+**Use China mainland mirror** (for slow image pulls):
+
+```bash
+USE_CN_MIRROR=true curl -fsSL https://memoh.sh | sudo sh
+```
+
+> Environment variables can be combined, e.g. `MEMOH_VERSION=v1.0.0 USE_CN_MIRROR=true curl -fsSL https://memoh.sh | sudo sh`
 
 ## Manual Install
 
@@ -77,17 +92,18 @@ And use the China mirror compose overlay:
 sudo docker compose -f docker-compose.yml -f docker/docker-compose.cn.yml up -d
 ```
 
-The install script handles this automatically when you answer "yes" to the China mirror prompt.
+The install script handles this automatically when you set `USE_CN_MIRROR=true`.
 
 ## Access Points
 
 After startup:
 
-| Service       | URL                    |
-|---------------|------------------------|
-| Web UI        | http://localhost:8082  |
-| API           | http://localhost:8080  |
-| Agent Gateway | http://localhost:8081  |
+| Service         | URL                    |
+|-----------------|------------------------|
+| Web UI          | http://localhost:8082  |
+| API             | http://localhost:8080  |
+| Agent Gateway   | http://localhost:8081  |
+| Browser Gateway | http://localhost:8083  |
 
 Default login: `admin` / `admin123` (change this in `config.toml`).
 
@@ -104,6 +120,15 @@ docker compose logs -f         # View logs
 docker compose ps              # Status
 docker compose pull && docker compose up -d  # Update to latest images
 ```
+
+## Environment Variables
+
+| Variable           | Default            | Description                                  |
+|--------------------|--------------------|----------------------------------------------|
+| `POSTGRES_PASSWORD`| `memoh123`         | PostgreSQL password (must match `postgres.password` in `config.toml`) |
+| `MEMOH_CONFIG`     | `./config.toml`    | Path to the configuration file               |
+| `MEMOH_VERSION`    | *(latest release)* | Git tag to install (e.g. `v1.0.0`). Also pins Docker image versions. |
+| `USE_CN_MIRROR`    | `false`            | Set to `true` to use China mainland mirror for Docker images         |
 
 ## Production Checklist
 
