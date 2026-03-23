@@ -20,6 +20,9 @@ var (
 	scheduleTmpl        string
 	heartbeatTmpl       string
 
+	MemoryExtractPrompt string
+	MemoryUpdatePrompt  string
+
 	includes map[string]string
 )
 
@@ -32,6 +35,8 @@ func init() {
 	systemSubagentTmpl = mustReadPrompt("prompts/system_subagent.md")
 	scheduleTmpl = mustReadPrompt("prompts/schedule.md")
 	heartbeatTmpl = mustReadPrompt("prompts/heartbeat.md")
+	MemoryExtractPrompt = mustReadPrompt("prompts/memory_extract.md")
+	MemoryUpdatePrompt = mustReadPrompt("prompts/memory_update.md")
 
 	includes = map[string]string{
 		"_memory":        mustReadPrompt("prompts/_memory.md"),

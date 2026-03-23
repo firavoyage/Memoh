@@ -1,11 +1,8 @@
 package models
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -100,26 +97,18 @@ func (s *Service) Test(ctx context.Context, id string) (TestResponse, error) {
 	}, nil
 }
 
-// testEmbeddingModel probes an embedding model by sending a minimal
-// request to the /embeddings endpoint.
+// testEmbeddingModel probes an embedding model by performing a minimal
+// embedding request via the Twilight SDK, verifying that the model is
+// reachable and functional rather than merely checking HTTP connectivity.
 func (*Service) testEmbeddingModel(ctx context.Context, baseURL, apiKey, modelID string) (TestResponse, error) {
-	body, _ := json.Marshal(map[string]any{"model": modelID, "input": "hello"})
-
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		baseURL+"/embeddings", bytes.NewReader(body))
-	if err != nil {
-		return TestResponse{Status: TestStatusError, Message: err.Error()}, nil
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
+	model := NewSDKEmbeddingModel(baseURL, apiKey, modelID, probeTimeout)
+	client := sdk.NewClient()
 
 	start := time.Now()
-	httpClient := &http.Client{Timeout: probeTimeout}
-	// #nosec G704 -- baseURL comes from the configured provider endpoint that this health probe is expected to test.
-	resp, err := httpClient.Do(req)
+	_, err := client.Embed(ctx, "hello", sdk.WithEmbeddingModel(model))
 	latency := time.Since(start).Milliseconds()
 
 	if err != nil {
@@ -130,30 +119,13 @@ func (*Service) testEmbeddingModel(ctx context.Context, baseURL, apiKey, modelID
 			Message:   err.Error(),
 		}, nil
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
 
-	result, classifyErr := sdk.ClassifyProbeStatus(resp.StatusCode)
-	if classifyErr != nil {
-		return TestResponse{
-			Status:    TestStatusError,
-			Reachable: true,
-			LatencyMs: latency,
-			Message:   classifyErr.Error(),
-		}, nil
-	}
-
-	tr := TestResponse{
+	return TestResponse{
+		Status:    TestStatusOK,
 		Reachable: true,
 		LatencyMs: latency,
-		Message:   result.Message,
-	}
-	if result.Supported {
-		tr.Status = TestStatusOK
-	} else {
-		tr.Status = TestStatusModelNotSupported
-	}
-	return tr, nil
+		Message:   "embedding model is operational",
+	}, nil
 }
 
 // NewSDKProvider creates a Twilight AI SDK Provider for the given client type.

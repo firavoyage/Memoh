@@ -66,6 +66,7 @@ import (
 	membuiltin "github.com/memohai/memoh/internal/memory/adapters/builtin"
 	memmem0 "github.com/memohai/memoh/internal/memory/adapters/mem0"
 	memopenviking "github.com/memohai/memoh/internal/memory/adapters/openviking"
+	"github.com/memohai/memoh/internal/memory/memllm"
 	storefs "github.com/memohai/memoh/internal/memory/storefs"
 	"github.com/memohai/memoh/internal/message"
 	"github.com/memohai/memoh/internal/message/event"
@@ -354,7 +355,7 @@ func provideMemoryLLM(modelsService *models.Service, queries *dbsqlc.Queries, lo
 	}
 }
 
-func provideMemoryProviderRegistry(log *slog.Logger, chatService *conversation.Service, accountService *accounts.Service, manager *workspace.Manager, queries *dbsqlc.Queries, cfg config.Config) *memprovider.Registry {
+func provideMemoryProviderRegistry(log *slog.Logger, llm memprovider.LLM, chatService *conversation.Service, accountService *accounts.Service, manager *workspace.Manager, queries *dbsqlc.Queries, cfg config.Config) *memprovider.Registry {
 	registry := memprovider.NewRegistry(log)
 	fileRuntime := handlers.NewBuiltinMemoryRuntime(manager)
 	fileStore := storefs.New(log, manager)
@@ -363,7 +364,10 @@ func provideMemoryProviderRegistry(log *slog.Logger, chatService *conversation.S
 		if err != nil {
 			return nil, err
 		}
-		return membuiltin.NewBuiltinProvider(log, runtime, chatService, accountService), nil
+		p := membuiltin.NewBuiltinProvider(log, runtime, chatService, accountService)
+		p.SetLLM(llm)
+		p.ApplyProviderConfig(providerConfig)
+		return p, nil
 	})
 	registry.RegisterFactory(string(memprovider.ProviderMem0), func(_ string, providerConfig map[string]any) (memprovider.Provider, error) {
 		return memmem0.NewMem0Provider(log, providerConfig, fileStore)
@@ -371,7 +375,9 @@ func provideMemoryProviderRegistry(log *slog.Logger, chatService *conversation.S
 	registry.RegisterFactory(string(memprovider.ProviderOpenViking), func(_ string, providerConfig map[string]any) (memprovider.Provider, error) {
 		return memopenviking.NewOpenVikingProvider(log, providerConfig)
 	})
-	registry.Register("__builtin_default__", membuiltin.NewBuiltinProvider(log, fileRuntime, chatService, accountService))
+	defaultProvider := membuiltin.NewBuiltinProvider(log, fileRuntime, chatService, accountService)
+	defaultProvider.SetLLM(llm)
+	registry.Register("__builtin_default__", defaultProvider)
 	return registry
 }
 
@@ -1049,20 +1055,17 @@ func (c *lazyLLMClient) resolve(ctx context.Context) (memprovider.LLM, error) {
 	if c.modelsService == nil || c.queries == nil {
 		return nil, errors.New("models service not configured")
 	}
-	botID := ""
-	memoryModel, memoryProvider, err := models.SelectMemoryModelForBot(ctx, c.modelsService, c.queries, botID)
+	memoryModel, memoryProvider, err := models.SelectMemoryModelForBot(ctx, c.modelsService, c.queries, "")
 	if err != nil {
 		return nil, err
 	}
-	clientType := memoryProvider.ClientType
-	switch clientType {
-	case "openai-responses", "openai-completions", "anthropic-messages", "google-generative-ai":
-	default:
-		return nil, fmt.Errorf("memory model client type not supported: %s", clientType)
-	}
-	_ = memoryProvider
-	_ = memoryModel
-	return nil, errors.New("memory llm runtime is not available")
+	return memllm.New(memllm.Config{
+		ModelID:    memoryModel.ModelID,
+		BaseURL:    strings.TrimRight(memoryProvider.BaseUrl, "/"),
+		APIKey:     memoryProvider.ApiKey,
+		ClientType: memoryProvider.ClientType,
+		Timeout:    c.timeout,
+	}), nil
 }
 
 // skillLoaderAdapter bridges handlers.ContainerdHandler to flow.SkillLoader.
