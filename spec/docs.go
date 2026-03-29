@@ -10855,6 +10855,12 @@ const docTemplate = `{
             "properties": {
                 "message": {
                     "$ref": "#/definitions/channel.Message"
+                },
+                "model_id": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },

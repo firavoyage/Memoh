@@ -835,6 +835,8 @@ export type HandlersListSnapshotsResponse = {
 
 export type HandlersLocalChannelMessageRequest = {
     message?: ChannelMessage;
+    model_id?: string;
+    reasoning_effort?: string;
 };
 
 export type HandlersLoginRequest = {

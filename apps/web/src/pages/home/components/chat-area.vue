@@ -141,6 +141,65 @@
                   align="block-end"
                   class="items-center py-1.5"
                 >
+                  <!-- Model override selector -->
+                  <Popover v-model:open="modelPopoverOpen">
+                    <PopoverTrigger as-child>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        :disabled="!currentBotId || activeChatReadOnly"
+                        class="gap-0.5 text-muted-foreground max-w-40"
+                      >
+                        <span class="truncate text-[11px]">{{ selectedModelLabel }}</span>
+                        <ChevronDown class="size-3 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      class="w-96 p-0"
+                      align="start"
+                    >
+                      <ModelOptions
+                        v-model="overrideModelId"
+                        :models="models"
+                        :providers="providers"
+                        model-type="chat"
+                        :open="modelPopoverOpen"
+                        @update:model-value="onModelSelected"
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  <!-- Reasoning effort selector -->
+                  <Popover v-model:open="reasoningPopoverOpen">
+                    <PopoverTrigger as-child>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        :disabled="!currentBotId || activeChatReadOnly || !activeModelSupportsReasoning"
+                        class="gap-0.5 text-muted-foreground"
+                      >
+                        <Lightbulb
+                          class="size-3.5 shrink-0"
+                          :style="{ opacity: reasoningTriggerOpacity }"
+                        />
+                        <span class="text-[11px]">{{ selectedReasoningLabel }}</span>
+                        <ChevronDown class="size-3 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      class="w-40 p-0"
+                      align="start"
+                    >
+                      <ReasoningEffortSelect
+                        v-model="overrideReasoningEffort"
+                        :efforts="availableReasoningEfforts"
+                        @update:model-value="onReasoningSelected"
+                      />
+                    </PopoverContent>
+                  </Popover>
+
                   <Button
                     type="button"
                     size="sm"
@@ -242,25 +301,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount, provide, useTemplateRef, watchEffect } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, provide, useTemplateRef, watchEffect, watch } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
-import { LoaderCircle, Image as ImageIcon, File as FileIcon, X, Paperclip, FolderOpen, Send } from 'lucide-vue-next'
-import { ScrollArea, Button, InputGroup, InputGroupAddon, InputGroupTextarea } from '@memohai/ui'
+import { LoaderCircle, Image as ImageIcon, File as FileIcon, X, Paperclip, FolderOpen, Send, ChevronDown, Lightbulb } from 'lucide-vue-next'
+import { ScrollArea, Button, InputGroup, InputGroupAddon, InputGroupTextarea, Popover, PopoverContent, PopoverTrigger } from '@memohai/ui'
 import { useChatStore } from '@/store/chat-list'
 import { storeToRefs } from 'pinia'
 import MessageItem from './message-item.vue'
 import MediaGalleryLightbox from './media-gallery-lightbox.vue'
 import FileManager from '@/components/file-manager/index.vue'
+import ModelOptions from '@/pages/bots/components/model-options.vue'
+import ReasoningEffortSelect from '@/pages/bots/components/reasoning-effort-select.vue'
+import { EFFORT_LABELS, EFFORT_OPACITY } from '@/pages/bots/components/reasoning-effort'
 import { useMediaGallery } from '../composables/useMediaGallery'
 import { openInFileManagerKey } from '../composables/useFileManagerProvider'
 import type { ChatAttachment } from '@/composables/api/useChat'
 import { useScroll, useElementBounding } from '@vueuse/core'
+import { useQuery } from '@pinia/colada'
+import { getModels, getProviders, getBotsByBotIdSettings } from '@memohai/sdk'
+import type { ModelsGetResponse, ProvidersGetResponse } from '@memohai/sdk'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const chatStore = useChatStore()
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingFiles = ref<File[]>([])
 const fileManagerOpen = ref(false)
 const fileManagerRef = ref<InstanceType<typeof FileManager> | null>(null)
+const modelPopoverOpen = ref(false)
+const reasoningPopoverOpen = ref(false)
 
 const FM_MIN_WIDTH = 320
 const FM_MAX_WIDTH = 800
@@ -334,7 +403,103 @@ const {
   loadingOlder,
   loadingChats,
   hasMoreOlder,
+  overrideModelId,
+  overrideReasoningEffort,
 } = storeToRefs(chatStore)
+
+const { data: modelData } = useQuery({
+  key: ['all-models'],
+  query: async () => {
+    const { data } = await getModels({ throwOnError: true })
+    return data
+  },
+})
+
+const { data: providerData } = useQuery({
+  key: ['all-providers'],
+  query: async () => {
+    const { data } = await getProviders({ throwOnError: true })
+    return data
+  },
+})
+
+const { data: botSettings } = useQuery({
+  key: () => ['bot-settings', currentBotId.value],
+  query: async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (getBotsByBotIdSettings as any)({
+      path: { bot_id: currentBotId.value! },
+      throwOnError: true,
+    })
+    return data as import('@memohai/sdk').SettingsSettings | undefined
+  },
+  enabled: () => !!currentBotId.value,
+})
+
+const models = computed<ModelsGetResponse[]>(() => modelData.value ?? [])
+const providers = computed<ProvidersGetResponse[]>(() => providerData.value ?? [])
+
+const activeModel = computed(() => {
+  const id = overrideModelId.value || botSettings.value?.chat_model_id || ''
+  return models.value.find((m) => m.id === id)
+})
+
+const activeModelSupportsReasoning = computed(() =>
+  !!activeModel.value?.config?.compatibilities?.includes('reasoning'),
+)
+
+const availableReasoningEfforts = computed(() => {
+  const efforts = ((activeModel.value?.config as { reasoning_efforts?: string[] } | undefined)?.reasoning_efforts ?? [])
+    .filter((e) => ['none', 'low', 'medium', 'high', 'xhigh'].includes(e))
+  return efforts.length > 0 ? efforts : ['low', 'medium', 'high']
+})
+
+const selectedModelLabel = computed(() => {
+  const m = models.value.find((m) => m.id === overrideModelId.value)
+  return m?.name || m?.model_id || t('chat.modelDefault')
+})
+
+const selectedReasoningLabel = computed(() => {
+  const v = overrideReasoningEffort.value
+  if (v === 'off') return t('chat.reasoningOff')
+  return t(EFFORT_LABELS[v] ?? 'chat.modelDefault')
+})
+
+const reasoningTriggerOpacity = computed(() =>
+  EFFORT_OPACITY[overrideReasoningEffort.value] ?? 0.5,
+)
+
+function initFromBotSettings() {
+  if (!botSettings.value) return
+  if (!overrideModelId.value) {
+    overrideModelId.value = botSettings.value.chat_model_id ?? ''
+  }
+  if (!overrideReasoningEffort.value) {
+    if (botSettings.value.reasoning_enabled && botSettings.value.reasoning_effort) {
+      overrideReasoningEffort.value = botSettings.value.reasoning_effort
+    } else {
+      overrideReasoningEffort.value = 'off'
+    }
+  }
+}
+
+watch(botSettings, () => initFromBotSettings(), { immediate: true })
+
+watch(currentBotId, () => {
+  overrideModelId.value = ''
+  overrideReasoningEffort.value = ''
+})
+
+function onModelSelected() {
+  modelPopoverOpen.value = false
+  if (!activeModelSupportsReasoning.value) {
+    overrideReasoningEffort.value = 'off'
+  }
+}
+
+function onReasoningSelected() {
+  reasoningPopoverOpen.value = false
+}
 
 const {
   items: galleryItems,
