@@ -107,6 +107,13 @@ func SpeechResolver() TagResolver {
 	}
 }
 
+// StripAgentTags removes all default agent tag blocks (<attachments>, <reactions>, <speech>)
+// from text, returning only the visible content.
+func StripAgentTags(text string) string {
+	cleaned, _ := ExtractTagsFromText(text, DefaultTagResolvers())
+	return cleaned
+}
+
 // ExtractTagsFromText extracts and removes all tag blocks from a complete string.
 func ExtractTagsFromText(text string, resolvers []TagResolver) (string, []TagEvent) {
 	var events []TagEvent

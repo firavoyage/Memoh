@@ -200,14 +200,23 @@ func (r *Resolver) resolvePersistSenderIDs(ctx context.Context, req conversation
 }
 
 // LinkOutboundAssets links bot-generated assets to the latest assistant
-// message for the given bot. Used by the WebSocket path where attachment
-// ingestion happens after message persistence.
-func (r *Resolver) LinkOutboundAssets(ctx context.Context, botID string, assets []messagepkg.AssetRef) {
+// message. When sessionID is provided, the search is scoped to that session;
+// otherwise it falls back to a bot-wide search.
+// Used by the WebSocket path where attachment ingestion happens after message
+// persistence.
+func (r *Resolver) LinkOutboundAssets(ctx context.Context, botID, sessionID string, assets []messagepkg.AssetRef) {
 	if r.messageService == nil || len(assets) == 0 || strings.TrimSpace(botID) == "" {
 		return
 	}
-	// ListLatest returns messages in DESC order (newest first).
-	msgs, err := r.messageService.ListLatest(ctx, botID, 5)
+	var (
+		msgs []messagepkg.Message
+		err  error
+	)
+	if strings.TrimSpace(sessionID) != "" {
+		msgs, err = r.messageService.ListLatestBySession(ctx, sessionID, 5)
+	} else {
+		msgs, err = r.messageService.ListLatest(ctx, botID, 5)
+	}
 	if err != nil {
 		r.logger.Warn("LinkOutboundAssets: list latest failed", slog.Any("error", err))
 		return

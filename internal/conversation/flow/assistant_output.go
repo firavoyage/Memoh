@@ -3,6 +3,7 @@ package flow
 import (
 	"strings"
 
+	"github.com/memohai/memoh/internal/agent"
 	"github.com/memohai/memoh/internal/conversation"
 )
 
@@ -28,6 +29,7 @@ func ExtractAssistantOutputs(messages []conversation.ModelMessage) []conversatio
 		if content == "" && len(parts) == 0 {
 			continue
 		}
+		content = agent.StripAgentTags(content)
 		outputs = append(outputs, conversation.AssistantOutput{Content: content, Parts: parts})
 	}
 	return outputs

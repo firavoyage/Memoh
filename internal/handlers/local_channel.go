@@ -415,6 +415,7 @@ func (h *LocalChannelHandler) HandleWebSocket(c echo.Context) error {
 			activeCancel = streamCancel
 			eventCh := make(chan flow.WSStreamEvent, 64)
 
+			sessionID := strings.TrimSpace(msg.SessionID)
 			var (
 				outboundAssetMu   sync.Mutex
 				outboundAssetRefs []messagepkg.AssetRef
@@ -426,7 +427,7 @@ func (h *LocalChannelHandler) HandleWebSocket(c echo.Context) error {
 				req := conversation.ChatRequest{
 					BotID:                   botID,
 					ChatID:                  botID,
-					SessionID:               strings.TrimSpace(msg.SessionID),
+					SessionID:               sessionID,
 					Token:                   bearerToken,
 					UserID:                  channelIdentityID,
 					SourceChannelIdentityID: channelIdentityID,
@@ -462,7 +463,7 @@ func (h *LocalChannelHandler) HandleWebSocket(c echo.Context) error {
 				refs := outboundAssetRefs
 				outboundAssetMu.Unlock()
 				if len(refs) > 0 {
-					h.resolver.LinkOutboundAssets(context.WithoutCancel(ctx), botID, refs)
+					h.resolver.LinkOutboundAssets(context.WithoutCancel(ctx), botID, sessionID, refs)
 				}
 			}()
 

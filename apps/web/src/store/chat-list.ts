@@ -278,6 +278,7 @@ export const useChatStore = defineStore('chat', () => {
             pendingAssistant.blocks.push(block)
             if (tc.id) pendingToolCallMap.set(tc.id, block)
           }
+          pendingAssistant.blocks.push(...buildAssetBlocks(raw))
           continue
         }
 
@@ -286,6 +287,7 @@ export const useChatStore = defineStore('chat', () => {
             pendingAssistant.blocks.push({ type: 'thinking', content: r, done: true })
           }
           pendingAssistant.blocks.push({ type: 'text', content: text })
+          pendingAssistant.blocks.push(...buildAssetBlocks(raw))
           flushPending()
           continue
         }

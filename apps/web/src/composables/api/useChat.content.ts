@@ -1,6 +1,8 @@
 import type { Message } from './useChat.types'
 
 const yamlHeaderRe = /^---\n[\s\S]*?\n---\n?/
+const agentTagsRe = /<(attachments|reactions|speech)>[\s\S]*?<\/\1>/g
+const collapsedNewlinesRe = /\n{3,}/g
 
 export function extractToolCalls(
   message: Message,
@@ -92,12 +94,18 @@ export function extractMessageText(message: Message): string {
 
   if (message.role === 'user') {
     text = stripYAMLHeader(text)
+  } else {
+    text = stripAgentTags(text)
   }
   return text
 }
 
 export function stripYAMLHeader(text: string): string {
   return text.replace(yamlHeaderRe, '').trim()
+}
+
+export function stripAgentTags(text: string): string {
+  return text.replace(agentTagsRe, '').replace(collapsedNewlinesRe, '\n\n').trim()
 }
 
 export function extractTextFromContent(content: unknown): string {
