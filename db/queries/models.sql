@@ -18,6 +18,7 @@ SELECT * FROM providers WHERE name = sqlc.arg(name);
 
 -- name: ListProviders :many
 SELECT * FROM providers
+WHERE client_type NOT LIKE '%-speech'
 ORDER BY created_at DESC;
 
 -- name: UpdateProvider :one
@@ -186,7 +187,7 @@ WHERE m.id = sqlc.arg(id)
 
 -- name: ListSpeechProviders :many
 SELECT * FROM providers
-WHERE client_type = 'edge-speech'
+WHERE client_type LIKE '%-speech'
 ORDER BY created_at DESC;
 
 -- name: ListSpeechModels :many
