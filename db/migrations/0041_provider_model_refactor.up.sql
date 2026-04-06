@@ -8,26 +8,24 @@ BEGIN
     RETURN;
   END IF;
 
-  ALTER TABLE llm_providers
-    ADD COLUMN IF NOT EXISTS client_type TEXT NOT NULL DEFAULT 'openai-completions',
-    ADD COLUMN IF NOT EXISTS icon TEXT;
+  EXECUTE 'ALTER TABLE llm_providers ADD COLUMN IF NOT EXISTS client_type TEXT NOT NULL DEFAULT ''openai-completions''';
+  EXECUTE 'ALTER TABLE llm_providers ADD COLUMN IF NOT EXISTS icon TEXT';
 
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'models' AND column_name = 'client_type') THEN
-    UPDATE llm_providers p
-    SET client_type = sub.client_type
-    FROM (
-      SELECT DISTINCT ON (llm_provider_id) llm_provider_id, client_type
-      FROM models
-      WHERE client_type IS NOT NULL AND client_type != ''
-      ORDER BY llm_provider_id, created_at ASC
-    ) sub
-    WHERE p.id = sub.llm_provider_id;
+    EXECUTE '
+      UPDATE llm_providers p
+      SET client_type = sub.client_type
+      FROM (
+        SELECT DISTINCT ON (llm_provider_id) llm_provider_id, client_type
+        FROM models
+        WHERE client_type IS NOT NULL AND client_type != ''''
+        ORDER BY llm_provider_id, created_at ASC
+      ) sub
+      WHERE p.id = sub.llm_provider_id';
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'llm_providers_client_type_check') THEN
-    ALTER TABLE llm_providers
-      ADD CONSTRAINT llm_providers_client_type_check
-      CHECK (client_type IN ('openai-responses', 'openai-completions', 'anthropic-messages', 'google-generative-ai'));
+    EXECUTE 'ALTER TABLE llm_providers ADD CONSTRAINT llm_providers_client_type_check CHECK (client_type IN (''openai-responses'', ''openai-completions'', ''anthropic-messages'', ''google-generative-ai''))';
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'models' AND column_name = 'config') THEN
@@ -51,10 +49,16 @@ BEGIN
   END IF;
 END $$;
 
-ALTER TABLE models DROP CONSTRAINT IF EXISTS models_client_type_check;
-ALTER TABLE models DROP CONSTRAINT IF EXISTS models_chat_client_type_check;
-ALTER TABLE models DROP CONSTRAINT IF EXISTS models_dimensions_check;
-ALTER TABLE models DROP COLUMN IF EXISTS client_type;
-ALTER TABLE models DROP COLUMN IF EXISTS dimensions;
-ALTER TABLE models DROP COLUMN IF EXISTS input_modalities;
-ALTER TABLE models DROP COLUMN IF EXISTS supports_reasoning;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'llm_providers') THEN
+    RETURN;
+  END IF;
+  ALTER TABLE models DROP CONSTRAINT IF EXISTS models_client_type_check;
+  ALTER TABLE models DROP CONSTRAINT IF EXISTS models_chat_client_type_check;
+  ALTER TABLE models DROP CONSTRAINT IF EXISTS models_dimensions_check;
+  ALTER TABLE models DROP COLUMN IF EXISTS client_type;
+  ALTER TABLE models DROP COLUMN IF EXISTS dimensions;
+  ALTER TABLE models DROP COLUMN IF EXISTS input_modalities;
+  ALTER TABLE models DROP COLUMN IF EXISTS supports_reasoning;
+END $$;

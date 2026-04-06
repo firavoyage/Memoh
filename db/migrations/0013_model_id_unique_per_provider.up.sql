@@ -11,8 +11,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'models_provider_model_id_unique')
      AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'models_provider_id_model_id_unique') THEN
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'models' AND column_name = 'llm_provider_id') THEN
-      ALTER TABLE models
-        ADD CONSTRAINT models_provider_model_id_unique UNIQUE (llm_provider_id, model_id);
+      EXECUTE 'ALTER TABLE models ADD CONSTRAINT models_provider_model_id_unique UNIQUE (llm_provider_id, model_id)';
     END IF;
   END IF;
 END

@@ -366,14 +366,16 @@ type MemoryProvider struct {
 }
 
 type Model struct {
-	ID         pgtype.UUID        `json:"id"`
-	ModelID    string             `json:"model_id"`
-	Name       pgtype.Text        `json:"name"`
-	ProviderID pgtype.UUID        `json:"provider_id"`
-	Type       string             `json:"type"`
-	Config     []byte             `json:"config"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ID                pgtype.UUID        `json:"id"`
+	ModelID           string             `json:"model_id"`
+	Name              pgtype.Text        `json:"name"`
+	ProviderID        pgtype.UUID        `json:"provider_id"`
+	Type              string             `json:"type"`
+	Config            []byte             `json:"config"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	InputModalities   []string           `json:"input_modalities"`
+	SupportsReasoning bool               `json:"supports_reasoning"`
 }
 
 type ModelVariant struct {

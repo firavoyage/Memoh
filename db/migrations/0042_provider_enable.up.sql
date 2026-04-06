@@ -5,6 +5,6 @@
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'llm_providers') THEN
-    ALTER TABLE llm_providers ADD COLUMN IF NOT EXISTS enable BOOLEAN NOT NULL DEFAULT true;
+    EXECUTE 'ALTER TABLE llm_providers ADD COLUMN IF NOT EXISTS enable BOOLEAN NOT NULL DEFAULT true';
   END IF;
 END $$;

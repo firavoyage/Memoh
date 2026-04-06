@@ -6,6 +6,6 @@
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tts_models') THEN
-    ALTER TABLE tts_models DROP CONSTRAINT IF EXISTS tts_models_provider_model_id_unique;
+    EXECUTE 'ALTER TABLE tts_models DROP CONSTRAINT IF EXISTS tts_models_provider_model_id_unique';
   END IF;
 END $$;
