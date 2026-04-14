@@ -102,6 +102,19 @@ func ManagedDir() string {
 	return ManagedDirPath
 }
 
+func ManagedSkillDirForName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if !IsValidName(name) {
+		return "", bridge.ErrBadRequest
+	}
+
+	dirPath := path.Clean(path.Join(ManagedDirPath, name))
+	if dirPath == ManagedDirPath || !strings.HasPrefix(dirPath, ManagedDirPath+"/") {
+		return "", bridge.ErrBadRequest
+	}
+	return dirPath, nil
+}
+
 func ContainerEnv() []string {
 	return []string{
 		"HOME=" + config.DefaultDataMount,
@@ -184,7 +197,10 @@ func ApplyAction(ctx context.Context, client fileClient, req ActionRequest) erro
 				return bridge.ErrBadRequest
 			}
 		}
-		dirPath := path.Join(ManagedDirPath, target.Name)
+		dirPath, err := ManagedSkillDirForName(target.Name)
+		if err != nil {
+			return err
+		}
 		if err := client.Mkdir(ctx, dirPath); err != nil {
 			return err
 		}
@@ -245,6 +261,12 @@ func ParseFile(raw string, fallbackName string) Parsed {
 func IsValidName(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
+		return false
+	}
+	if name == "." || name == ".." {
+		return false
+	}
+	if strings.HasPrefix(name, ".") || strings.Contains(name, "..") {
 		return false
 	}
 	for _, r := range name {

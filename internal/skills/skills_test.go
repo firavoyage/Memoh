@@ -2,11 +2,13 @@ package skills
 
 import (
 	"context"
+	"errors"
 	"io"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/memohai/memoh/internal/workspace/bridge"
 	pb "github.com/memohai/memoh/internal/workspace/bridgepb"
 )
 
@@ -104,6 +106,62 @@ func TestApplyActionAdoptAndDisable(t *testing.T) {
 	idx := readIndex(context.Background(), client)
 	if !idx.Overrides[externalPath].Disabled {
 		t.Fatalf("expected disabled override for %s", externalPath)
+	}
+}
+
+func TestApplyActionAdoptRejectsInvalidManagedName(t *testing.T) {
+	client := newFakeClient()
+	externalPath := pathJoin("/data/.agents/skills", "escape", "SKILL.md")
+	client.listings["/data/.agents/skills"] = []*pb.FileEntry{{Path: "escape", IsDir: true}}
+	client.files[externalPath] = "---\nname: ..\ndescription: Escape\n---\n\n# Escape"
+
+	err := ApplyAction(context.Background(), client, ActionRequest{
+		Action:     ActionAdopt,
+		TargetPath: externalPath,
+	})
+	if !errors.Is(err, bridge.ErrBadRequest) {
+		t.Fatalf("adopt err = %v, want ErrBadRequest", err)
+	}
+	if _, ok := client.files[pathJoin(ManagedDirPath, "..", "SKILL.md")]; ok {
+		t.Fatalf("unexpected managed write for invalid adopted name")
+	}
+}
+
+func TestIsValidNameRejectsTraversalPatterns(t *testing.T) {
+	for _, name := range []string{
+		"",
+		".",
+		"..",
+		".hidden",
+		"alpha..beta",
+		"../escape",
+		"alpha/../beta",
+	} {
+		if IsValidName(name) {
+			t.Fatalf("IsValidName(%q) = true, want false", name)
+		}
+	}
+
+	for _, name := range []string{"alpha", "alpha-beta", "alpha_beta", "alpha.beta"} {
+		if !IsValidName(name) {
+			t.Fatalf("IsValidName(%q) = false, want true", name)
+		}
+	}
+}
+
+func TestManagedSkillDirForNameRejectsEscapingNames(t *testing.T) {
+	for _, name := range []string{".", "..", ".alpha", "alpha..beta"} {
+		if _, err := ManagedSkillDirForName(name); !errors.Is(err, bridge.ErrBadRequest) {
+			t.Fatalf("ManagedSkillDirForName(%q) err = %v, want ErrBadRequest", name, err)
+		}
+	}
+
+	dirPath, err := ManagedSkillDirForName("alpha.beta")
+	if err != nil {
+		t.Fatalf("ManagedSkillDirForName(valid) returned error: %v", err)
+	}
+	if dirPath != pathJoin(ManagedDirPath, "alpha.beta") {
+		t.Fatalf("ManagedSkillDirForName(valid) = %q, want %q", dirPath, pathJoin(ManagedDirPath, "alpha.beta"))
 	}
 }
 

@@ -101,10 +101,10 @@ func (h *ContainerdHandler) UpsertSkills(c echo.Context) error {
 
 	for _, raw := range req.Skills {
 		parsed := skillset.ParseFile(raw, "")
-		if !skillset.IsValidName(parsed.Name) {
+		dirPath, dirErr := skillset.ManagedSkillDirForName(parsed.Name)
+		if dirErr != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "skill must have a valid name in YAML frontmatter")
 		}
-		dirPath := path.Join(skillset.ManagedDir(), parsed.Name)
 		if err := client.Mkdir(ctx, dirPath); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("mkdir failed: %v", err))
 		}
@@ -149,10 +149,10 @@ func (h *ContainerdHandler) DeleteSkills(c echo.Context) error {
 
 	for _, name := range req.Names {
 		skillName := strings.TrimSpace(name)
-		if !skillset.IsValidName(skillName) {
+		managedDir, dirErr := skillset.ManagedSkillDirForName(skillName)
+		if dirErr != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid skill name")
 		}
-		managedDir := path.Join(skillset.ManagedDir(), skillName)
 		if _, statErr := client.Stat(ctx, managedDir); statErr != nil {
 			return fsHTTPError(statErr)
 		}

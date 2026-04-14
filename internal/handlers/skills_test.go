@@ -205,6 +205,24 @@ func TestDeleteSkillsAPIRejectsExternalOnlySkill(t *testing.T) {
 	}
 }
 
+func TestUpsertSkillsAPIRejectsTraversalName(t *testing.T) {
+	env := newSkillsTestEnv(t)
+
+	_, err := env.callJSON(t, http.MethodPost, "/bots/:bot_id/container/skills", SkillsUpsertRequest{
+		Skills: []string{"---\nname: ..\ndescription: Escape\n---\n\n# Escape"},
+	}, env.handler.UpsertSkills)
+	if err == nil {
+		t.Fatal("expected upserting traversal skill name to fail")
+	}
+	var httpErr *echo.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("expected echo.HTTPError, got %T", err)
+	}
+	if httpErr.Code != http.StatusBadRequest {
+		t.Fatalf("upsert traversal status = %d, want 400", httpErr.Code)
+	}
+}
+
 func TestLoadSkillsUsesEffectiveSetAndPromptReflectsOverrideFallback(t *testing.T) {
 	env := newSkillsTestEnv(t)
 	managedPath := path.Join(skillset.ManagedDir(), "alpha", "SKILL.md")
