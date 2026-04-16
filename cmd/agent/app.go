@@ -938,10 +938,15 @@ func (a *skillLoaderAdapter) LoadSkills(ctx context.Context, botID string) ([]fl
 	}
 	entries := make([]flow.SkillEntry, len(items))
 	for i, item := range items {
+		skillPath := ""
+		if item.SourcePath != "" {
+			skillPath = stdpath.Dir(item.SourcePath)
+		}
 		entries[i] = flow.SkillEntry{
 			Name:        item.Name,
 			Description: item.Description,
 			Content:     item.Content,
+			Path:        skillPath,
 			Metadata:    item.Metadata,
 		}
 	}
