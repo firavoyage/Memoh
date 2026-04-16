@@ -6572,7 +6572,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Model type (chat, embedding)",
+                        "description": "Model type (chat, embedding, image, speech)",
                         "name": "type",
                         "in": "query"
                     },
@@ -12188,11 +12188,13 @@ const docTemplate = `{
             "enum": [
                 "chat",
                 "embedding",
+                "image",
                 "speech"
             ],
             "x-enum-varnames": [
                 "ModelTypeChat",
                 "ModelTypeEmbedding",
+                "ModelTypeImage",
                 "ModelTypeSpeech"
             ]
         },
