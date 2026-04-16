@@ -44,6 +44,7 @@ type SkillEntry struct {
 	Name        string
 	Description string
 	Content     string
+	Path        string
 	Metadata    map[string]any
 }
 
@@ -703,6 +704,7 @@ func normalizeGatewaySkill(entry SkillEntry) (agentpkg.SkillEntry, bool) {
 		Name:        name,
 		Description: description,
 		Content:     content,
+		Path:        strings.TrimSpace(entry.Path),
 		Metadata:    entry.Metadata,
 	}, true
 }

@@ -619,6 +619,7 @@ func (a *Agent) assembleTools(ctx context.Context, cfg RunConfig, emitter tools.
 		skillsMap[s.Name] = tools.SkillDetail{
 			Description: s.Description,
 			Content:     s.Content,
+			Path:        s.Path,
 		}
 	}
 	session := tools.SessionContext{

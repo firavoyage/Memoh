@@ -290,7 +290,7 @@ type skillsTestEnv struct {
 func newSkillsTestEnv(t *testing.T) *skillsTestEnv {
 	t.Helper()
 
-	dataRoot, err := os.MkdirTemp("", "memoh-skills-")
+	dataRoot, err := newSkillsTestDataRoot()
 	if err != nil {
 		t.Fatalf("create temp data root: %v", err)
 	}
@@ -380,6 +380,18 @@ func (e *skillsTestEnv) localPath(containerPath string) string {
 		return e.dataRoot
 	}
 	return filepath.Join(e.dataRoot, filepath.FromSlash(strings.TrimPrefix(clean, "/")))
+}
+
+func newSkillsTestDataRoot() (string, error) {
+	var lastErr error
+	for _, dir := range []string{"/tmp", ""} {
+		dataRoot, err := os.MkdirTemp(dir, "mh-sk-")
+		if err == nil {
+			return dataRoot, nil
+		}
+		lastErr = err
+	}
+	return "", lastErr
 }
 
 type skillsTestDB struct {
