@@ -244,6 +244,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeElevenLabsSpeech,
 			DisplayName: "ElevenLabs Speech",
+			Icon:        "elevenlabs",
 			Description: "ElevenLabs text-to-speech",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "ElevenLabs API key", true, 10),
@@ -296,6 +297,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeDeepgramSpeech,
 			DisplayName: "Deepgram Speech",
+			Icon:        "deepgram",
 			Description: "Deepgram TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "Deepgram API key", true, 10),
