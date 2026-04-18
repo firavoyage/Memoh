@@ -1,0 +1,7 @@
+name: Deepgram Speech
+client_type: deepgram-speech
+
+models:
+  - model_id: deepgram-tts
+    name: Deepgram TTS
+    type: speech

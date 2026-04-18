@@ -209,10 +209,15 @@ func mergeConfig(parts ...map[string]any) map[string]any {
 }
 
 func toSpeechProviderResponse(row sqlc.Provider) SpeechProviderResponse {
+	icon := ""
+	if row.Icon.Valid {
+		icon = row.Icon.String
+	}
 	return SpeechProviderResponse{
 		ID:         row.ID.String(),
 		Name:       row.Name,
 		ClientType: row.ClientType,
+		Icon:       icon,
 		Enable:     row.Enable,
 		CreatedAt:  row.CreatedAt.Time,
 		UpdatedAt:  row.UpdatedAt.Time,

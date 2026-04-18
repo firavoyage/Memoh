@@ -1,7 +1,19 @@
 <template>
   <div class="p-4">
     <section class="flex items-center gap-3">
-      <Volume2 class="size-5" />
+      <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+        <ProviderIcon
+          v-if="curProvider?.icon"
+          :icon="curProvider.icon"
+          size="1.5em"
+        />
+        <span
+          v-else
+          class="text-xs font-medium text-muted-foreground"
+        >
+          {{ getInitials(curProvider?.name) }}
+        </span>
+      </span>
       <div class="min-w-0">
         <h2 class="text-sm font-semibold truncate">
           {{ curProvider?.name }}
@@ -191,7 +203,7 @@ import {
   Switch,
 } from '@memohai/ui'
 import ModelConfigEditor from './model-config-editor.vue'
-import { ChevronDown, ChevronUp, Eye, EyeOff, Volume2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-vue-next'
 import { computed, inject, reactive, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
@@ -199,6 +211,7 @@ import { useQuery, useQueryCache } from '@pinia/colada'
 import { getSpeechModels, getSpeechProvidersMeta, putModelsById, putProvidersById } from '@memohai/sdk'
 import type { TtsSpeechModelResponse, TtsSpeechProviderResponse } from '@memohai/sdk'
 import LoadingButton from '@/components/loading-button/index.vue'
+import ProviderIcon from '@/components/provider-icon/index.vue'
 
 interface SpeechFieldSchema {
   key: string
@@ -231,6 +244,11 @@ interface SpeechProviderMeta {
   description?: string
   config_schema?: SpeechConfigSchema
   models?: SpeechModelMeta[]
+}
+
+function getInitials(name: string | undefined) {
+  const label = name?.trim() ?? ''
+  return label ? label.slice(0, 2).toUpperCase() : '?'
 }
 
 const { t } = useI18n()

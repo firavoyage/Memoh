@@ -1709,6 +1709,7 @@ export type TtsSpeechProviderResponse = {
     client_type?: string;
     created_at?: string;
     enable?: boolean;
+    icon?: string;
     id?: string;
     name?: string;
     updated_at?: string;

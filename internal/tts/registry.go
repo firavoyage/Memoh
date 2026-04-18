@@ -25,6 +25,7 @@ type ProviderFactory func(config map[string]any) (sdk.SpeechProvider, error)
 type ProviderDefinition struct {
 	ClientType   models.ClientType
 	DisplayName  string
+	Icon         string
 	Description  string
 	ConfigSchema ConfigSchema
 	DefaultModel string
@@ -123,6 +124,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:   models.ClientTypeEdgeSpeech,
 			DisplayName:  "Microsoft Edge",
+			Icon:         "microsoft",
 			Description:  "Free Edge Read Aloud TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{stringField("base_url", "Base URL", "Override the Edge WebSocket endpoint", false, "", 10)}},
 			DefaultModel: "edge-read-aloud",
@@ -163,6 +165,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeOpenAISpeech,
 			DisplayName: "OpenAI Speech",
+			Icon:        "openai",
 			Description: "OpenAI /audio/speech compatible TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "Bearer API key", true, 10),
@@ -204,6 +207,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeOpenRouterSpeech,
 			DisplayName: "OpenRouter Speech",
+			Icon:        "openrouter",
 			Description: "OpenRouter audio modality TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "OpenRouter API key", true, 10),
@@ -333,6 +337,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeMiniMaxSpeech,
 			DisplayName: "MiniMax Speech",
+			Icon:        "minimax-color",
 			Description: "MiniMax TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "MiniMax API key", true, 10),
@@ -380,6 +385,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeVolcengineSpeech,
 			DisplayName: "Volcengine Speech",
+			Icon:        "volcengine-color",
 			Description: "Volcengine SAMI TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("access_key", "Access Key", "Volcengine access key", true, 10),
@@ -431,6 +437,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeAlibabaSpeech,
 			DisplayName: "Alibaba Cloud Speech",
+			Icon:        "bailian-color",
 			Description: "DashScope CosyVoice TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "DashScope API key", true, 10),
@@ -478,6 +485,7 @@ func defaultProviderDefinitions() []ProviderDefinition {
 		{
 			ClientType:  models.ClientTypeMicrosoftSpeech,
 			DisplayName: "Microsoft Speech",
+			Icon:        "azure-color",
 			Description: "Azure Cognitive Services TTS",
 			ConfigSchema: ConfigSchema{Fields: []FieldSchema{
 				secretField("api_key", "API Key", "Azure speech subscription key", true, 10),

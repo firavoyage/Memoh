@@ -2880,6 +2880,8 @@ definitions:
         type: string
       enable:
         type: boolean
+      icon:
+        type: string
       id:
         type: string
       name:

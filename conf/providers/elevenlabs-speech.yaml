@@ -1,0 +1,7 @@
+name: ElevenLabs Speech
+client_type: elevenlabs-speech
+
+models:
+  - model_id: elevenlabs-tts
+    name: ElevenLabs TTS
+    type: speech

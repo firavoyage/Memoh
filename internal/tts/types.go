@@ -17,6 +17,7 @@ type SpeechProviderResponse struct {
 	ID         string    `json:"id"`
 	Name       string    `json:"name"`
 	ClientType string    `json:"client_type"`
+	Icon       string    `json:"icon,omitempty"`
 	Enable     bool      `json:"enable"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`

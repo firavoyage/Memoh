@@ -17,11 +17,15 @@ func SyncRegistry(ctx context.Context, logger *slog.Logger, queries *sqlc.Querie
 		if err != nil {
 			return fmt.Errorf("marshal speech provider config: %w", err)
 		}
+		var icon pgtype.Text
+		if def.Icon != "" {
+			icon = pgtype.Text{String: def.Icon, Valid: true}
+		}
 
 		provider, err := queries.UpsertRegistryProvider(ctx, sqlc.UpsertRegistryProviderParams{
 			Name:       def.DisplayName,
 			ClientType: string(def.ClientType),
-			Icon:       pgtype.Text{},
+			Icon:       icon,
 			Config:     configJSON,
 		})
 		if err != nil {

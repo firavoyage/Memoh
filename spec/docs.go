@@ -13111,6 +13111,9 @@ const docTemplate = `{
                 "enable": {
                     "type": "boolean"
                 },
+                "icon": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
