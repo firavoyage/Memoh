@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	sdk "github.com/memohai/twilight-ai/sdk"
 
 	"github.com/memohai/memoh/internal/db"
@@ -65,10 +66,25 @@ func (s *Service) ListSpeechModels(ctx context.Context) ([]SpeechModelResponse, 
 	}
 	items := make([]SpeechModelResponse, 0, len(rows))
 	for _, row := range rows {
-		if s.shouldHideModel(row.ProviderType, row.ModelID) {
+		if s.shouldHideModel(row.ProviderType, models.ModelTypeSpeech, row.ModelID) {
 			continue
 		}
 		items = append(items, toSpeechModelFromListRow(row))
+	}
+	return items, nil
+}
+
+func (s *Service) ListTranscriptionModels(ctx context.Context) ([]TranscriptionModelResponse, error) {
+	rows, err := s.queries.ListTranscriptionModels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list transcription models: %w", err)
+	}
+	items := make([]TranscriptionModelResponse, 0, len(rows))
+	for _, row := range rows {
+		if s.shouldHideModel(row.ProviderType, models.ModelTypeTranscription, row.ModelID) {
+			continue
+		}
+		items = append(items, toTranscriptionModelFromListRow(row))
 	}
 	return items, nil
 }
@@ -92,10 +108,37 @@ func (s *Service) ListSpeechModelsByProvider(ctx context.Context, providerID str
 	}
 	items := make([]SpeechModelResponse, 0, len(rows))
 	for _, row := range rows {
-		if shouldHideTemplateModel(def, row.ModelID) {
+		if shouldHideTemplateModel(def, models.ModelTypeSpeech, row.ModelID) {
 			continue
 		}
 		items = append(items, toSpeechModelFromModel(row, ""))
+	}
+	return items, nil
+}
+
+func (s *Service) ListTranscriptionModelsByProvider(ctx context.Context, providerID string) ([]TranscriptionModelResponse, error) {
+	pgID, err := db.ParseUUID(providerID)
+	if err != nil {
+		return nil, err
+	}
+	providerRow, err := s.queries.GetProviderByID(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("get speech provider: %w", err)
+	}
+	def, err := s.registry.Get(models.ClientType(providerRow.ClientType))
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.queries.ListTranscriptionModelsByProviderID(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("list transcription models by provider: %w", err)
+	}
+	items := make([]TranscriptionModelResponse, 0, len(rows))
+	for _, row := range rows {
+		if shouldHideTemplateModel(def, models.ModelTypeTranscription, row.ModelID) {
+			continue
+		}
+		items = append(items, toTranscriptionModelFromModel(row, ""))
 	}
 	return items, nil
 }
@@ -110,6 +153,80 @@ func (s *Service) GetSpeechModel(ctx context.Context, id string) (SpeechModelRes
 		return SpeechModelResponse{}, fmt.Errorf("get speech model: %w", err)
 	}
 	return toSpeechModelWithProviderResponse(row), nil
+}
+
+func (s *Service) GetTranscriptionModel(ctx context.Context, id string) (TranscriptionModelResponse, error) {
+	pgID, err := db.ParseUUID(id)
+	if err != nil {
+		return TranscriptionModelResponse{}, err
+	}
+	row, err := s.queries.GetTranscriptionModelWithProvider(ctx, pgID)
+	if err != nil {
+		return TranscriptionModelResponse{}, fmt.Errorf("get transcription model: %w", err)
+	}
+	return toTranscriptionModelWithProviderResponse(row), nil
+}
+
+func (s *Service) UpdateSpeechModel(ctx context.Context, id string, req UpdateSpeechModelRequest) (SpeechModelResponse, error) {
+	pgID, err := db.ParseUUID(id)
+	if err != nil {
+		return SpeechModelResponse{}, err
+	}
+	row, err := s.queries.GetSpeechModelWithProvider(ctx, pgID)
+	if err != nil {
+		return SpeechModelResponse{}, fmt.Errorf("get speech model: %w", err)
+	}
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		return SpeechModelResponse{}, fmt.Errorf("marshal speech config: %w", err)
+	}
+	name := row.Name
+	if req.Name != nil {
+		name = pgtype.Text{String: *req.Name, Valid: *req.Name != ""}
+	}
+	updated, err := s.queries.UpdateModel(ctx, sqlc.UpdateModelParams{
+		ID:         pgID,
+		ModelID:    row.ModelID,
+		Name:       name,
+		ProviderID: row.ProviderID,
+		Type:       string(models.ModelTypeSpeech),
+		Config:     configJSON,
+	})
+	if err != nil {
+		return SpeechModelResponse{}, fmt.Errorf("update speech model: %w", err)
+	}
+	return toSpeechModelFromModel(updated, row.ProviderType), nil
+}
+
+func (s *Service) UpdateTranscriptionModel(ctx context.Context, id string, req UpdateSpeechModelRequest) (TranscriptionModelResponse, error) {
+	pgID, err := db.ParseUUID(id)
+	if err != nil {
+		return TranscriptionModelResponse{}, err
+	}
+	row, err := s.queries.GetTranscriptionModelWithProvider(ctx, pgID)
+	if err != nil {
+		return TranscriptionModelResponse{}, fmt.Errorf("get transcription model: %w", err)
+	}
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		return TranscriptionModelResponse{}, fmt.Errorf("marshal transcription config: %w", err)
+	}
+	name := row.Name
+	if req.Name != nil {
+		name = pgtype.Text{String: *req.Name, Valid: *req.Name != ""}
+	}
+	updated, err := s.queries.UpdateModel(ctx, sqlc.UpdateModelParams{
+		ID:         pgID,
+		ModelID:    row.ModelID,
+		Name:       name,
+		ProviderID: row.ProviderID,
+		Type:       string(models.ModelTypeTranscription),
+		Config:     configJSON,
+	})
+	if err != nil {
+		return TranscriptionModelResponse{}, fmt.Errorf("update transcription model: %w", err)
+	}
+	return toTranscriptionModelFromModel(updated, row.ProviderType), nil
 }
 
 func (s *Service) Synthesize(ctx context.Context, modelID string, text string, overrideCfg map[string]any) ([]byte, string, error) {
@@ -164,9 +281,37 @@ func (s *Service) GetModelCapabilities(ctx context.Context, modelID string) (*Mo
 	if err != nil {
 		return nil, err
 	}
-	template := findModelTemplate(def, modelRow.ModelID)
+	template := findModelTemplate(def.Models, def.DefaultModel, modelRow.ModelID)
 	if template == nil {
 		return nil, fmt.Errorf("speech model capabilities not found: %s", modelRow.ModelID)
+	}
+	caps := template.Capabilities
+	if len(caps.ConfigSchema.Fields) == 0 {
+		caps.ConfigSchema = template.ConfigSchema
+	}
+	return &caps, nil
+}
+
+func (s *Service) GetSpeechModelCapabilities(ctx context.Context, modelID string) (*ModelCapabilities, error) {
+	return s.GetModelCapabilities(ctx, modelID)
+}
+
+func (s *Service) GetTranscriptionModelCapabilities(ctx context.Context, modelID string) (*ModelCapabilities, error) {
+	pgID, err := db.ParseUUID(modelID)
+	if err != nil {
+		return nil, err
+	}
+	modelRow, err := s.queries.GetTranscriptionModelWithProvider(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("get transcription model: %w", err)
+	}
+	def, err := s.registry.Get(models.ClientType(modelRow.ProviderType))
+	if err != nil {
+		return nil, err
+	}
+	template := findModelTemplate(def.TranscriptionModels, def.DefaultTranscriptionModel, modelRow.ModelID)
+	if template == nil {
+		return nil, fmt.Errorf("transcription model capabilities not found: %s", modelRow.ModelID)
 	}
 	caps := template.Capabilities
 	if len(caps.ConfigSchema.Fields) == 0 {
@@ -214,8 +359,68 @@ func (s *Service) FetchRemoteModels(ctx context.Context, providerID string) ([]M
 	return discovered, nil
 }
 
+func (s *Service) FetchRemoteTranscriptionModels(ctx context.Context, providerID string) ([]ModelInfo, error) {
+	pgID, err := db.ParseUUID(providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	providerRow, err := s.queries.GetProviderByID(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("get speech provider: %w", err)
+	}
+
+	def, err := s.registry.Get(models.ClientType(providerRow.ClientType))
+	if err != nil {
+		return nil, err
+	}
+	if !def.SupportsTranscriptionList || def.TranscriptionFactory == nil {
+		return nil, fmt.Errorf("speech provider does not support transcription model discovery: %s", providerRow.ClientType)
+	}
+
+	provider, err := def.TranscriptionFactory(parseConfig(providerRow.Config))
+	if err != nil {
+		return nil, fmt.Errorf("build transcription provider: %w", err)
+	}
+
+	remoteModels, err := provider.ListModels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list transcription models: %w", err)
+	}
+
+	discovered := make([]ModelInfo, 0, len(remoteModels))
+	for _, remoteModel := range remoteModels {
+		if remoteModel == nil || remoteModel.ID == "" {
+			continue
+		}
+		discovered = append(discovered, mergeRemoteModelInfo(remoteModel.ID, def.TranscriptionModels))
+	}
+	return discovered, nil
+}
+
+func (s *Service) Transcribe(ctx context.Context, modelID string, audio []byte, filename string, contentType string, overrideCfg map[string]any) (*sdk.TranscriptionResult, error) {
+	params, err := s.resolveTranscriptionParams(ctx, modelID, audio, filename, contentType, overrideCfg)
+	if err != nil {
+		return nil, err
+	}
+	result, err := sdk.Transcribe(ctx,
+		sdk.WithTranscriptionModel(params.model),
+		sdk.WithAudio(audio, filename, contentType),
+		sdk.WithTranscriptionConfig(params.config),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("transcribe: %w", err)
+	}
+	return result, nil
+}
+
 type resolvedSpeechParams struct {
 	model  *sdk.SpeechModel
+	config map[string]any
+}
+
+type resolvedTranscriptionParams struct {
+	model  *sdk.TranscriptionModel
 	config map[string]any
 }
 
@@ -247,6 +452,40 @@ func (s *Service) resolveSpeechParams(ctx context.Context, modelID string, text 
 	cfg := mergeConfig(parseConfig(providerRow.Config), parseConfig(modelRow.Config), overrideCfg)
 	return &resolvedSpeechParams{
 		model:  &sdk.SpeechModel{ID: modelRow.ModelID, Provider: provider},
+		config: cfg,
+	}, nil
+}
+
+func (s *Service) resolveTranscriptionParams(ctx context.Context, modelID string, audio []byte, filename string, contentType string, overrideCfg map[string]any) (*resolvedTranscriptionParams, error) {
+	_ = audio
+	_ = filename
+	_ = contentType
+	pgID, err := db.ParseUUID(modelID)
+	if err != nil {
+		return nil, err
+	}
+
+	modelRow, err := s.queries.GetTranscriptionModelWithProvider(ctx, pgID)
+	if err != nil {
+		return nil, fmt.Errorf("get transcription model: %w", err)
+	}
+	providerRow, err := s.queries.GetProviderByID(ctx, modelRow.ProviderID)
+	if err != nil {
+		return nil, fmt.Errorf("get speech provider: %w", err)
+	}
+
+	def, err := s.registry.Get(models.ClientType(providerRow.ClientType))
+	if err != nil {
+		return nil, err
+	}
+	provider, err := def.TranscriptionFactory(parseConfig(providerRow.Config))
+	if err != nil {
+		return nil, fmt.Errorf("build transcription provider: %w", err)
+	}
+
+	cfg := mergeConfig(parseConfig(providerRow.Config), parseConfig(modelRow.Config), overrideCfg)
+	return &resolvedTranscriptionParams{
+		model:  &sdk.TranscriptionModel{ID: modelRow.ModelID, Provider: provider},
 		config: cfg,
 	}, nil
 }
@@ -284,41 +523,53 @@ func mergeRemoteModelInfo(modelID string, defaults []ModelInfo) ModelInfo {
 	}
 }
 
-func (s *Service) shouldHideModel(clientType string, modelID string) bool {
+func (s *Service) shouldHideModel(clientType string, modelType models.ModelType, modelID string) bool {
 	def, err := s.registry.Get(models.ClientType(clientType))
 	if err != nil {
 		return false
 	}
-	return shouldHideTemplateModel(def, modelID)
+	return shouldHideTemplateModel(def, modelType, modelID)
 }
 
-func shouldHideTemplateModel(def ProviderDefinition, modelID string) bool {
-	if !def.SupportsList {
-		return false
-	}
-	for _, model := range def.Models {
-		if model.ID == modelID {
-			return model.TemplateOnly
+func shouldHideTemplateModel(def ProviderDefinition, modelType models.ModelType, modelID string) bool {
+	switch modelType {
+	case models.ModelTypeSpeech:
+		if !def.SupportsList {
+			return false
+		}
+		for _, model := range def.Models {
+			if model.ID == modelID {
+				return model.TemplateOnly
+			}
+		}
+	case models.ModelTypeTranscription:
+		if !def.SupportsTranscriptionList {
+			return false
+		}
+		for _, model := range def.TranscriptionModels {
+			if model.ID == modelID {
+				return model.TemplateOnly
+			}
 		}
 	}
 	return false
 }
 
-func findModelTemplate(def ProviderDefinition, modelID string) *ModelInfo {
-	for i := range def.Models {
-		if def.Models[i].ID == modelID {
-			return &def.Models[i]
+func findModelTemplate(modelsList []ModelInfo, defaultModel string, modelID string) *ModelInfo {
+	for i := range modelsList {
+		if modelsList[i].ID == modelID {
+			return &modelsList[i]
 		}
 	}
-	if def.DefaultModel != "" {
-		for i := range def.Models {
-			if def.Models[i].ID == def.DefaultModel {
-				return &def.Models[i]
+	if defaultModel != "" {
+		for i := range modelsList {
+			if modelsList[i].ID == defaultModel {
+				return &modelsList[i]
 			}
 		}
 	}
-	if len(def.Models) > 0 {
-		return &def.Models[0]
+	if len(modelsList) > 0 {
+		return &modelsList[0]
 	}
 	return nil
 }
@@ -423,6 +674,69 @@ func toSpeechModelWithProviderResponse(row sqlc.GetSpeechModelWithProviderRow) S
 		name = row.Name.String
 	}
 	return SpeechModelResponse{
+		ID:           row.ID.String(),
+		ModelID:      row.ModelID,
+		Name:         name,
+		ProviderID:   row.ProviderID.String(),
+		ProviderType: row.ProviderType,
+		Config:       cfg,
+		CreatedAt:    row.CreatedAt.Time,
+		UpdatedAt:    row.UpdatedAt.Time,
+	}
+}
+
+func toTranscriptionModelFromListRow(row sqlc.ListTranscriptionModelsRow) TranscriptionModelResponse {
+	var cfg map[string]any
+	if len(row.Config) > 0 {
+		_ = json.Unmarshal(row.Config, &cfg)
+	}
+	name := ""
+	if row.Name.Valid {
+		name = row.Name.String
+	}
+	return TranscriptionModelResponse{
+		ID:           row.ID.String(),
+		ModelID:      row.ModelID,
+		Name:         name,
+		ProviderID:   row.ProviderID.String(),
+		ProviderType: row.ProviderType,
+		Config:       cfg,
+		CreatedAt:    row.CreatedAt.Time,
+		UpdatedAt:    row.UpdatedAt.Time,
+	}
+}
+
+func toTranscriptionModelFromModel(row sqlc.Model, providerType string) TranscriptionModelResponse {
+	var cfg map[string]any
+	if len(row.Config) > 0 {
+		_ = json.Unmarshal(row.Config, &cfg)
+	}
+	name := ""
+	if row.Name.Valid {
+		name = row.Name.String
+	}
+	return TranscriptionModelResponse{
+		ID:           row.ID.String(),
+		ModelID:      row.ModelID,
+		Name:         name,
+		ProviderID:   row.ProviderID.String(),
+		ProviderType: providerType,
+		Config:       cfg,
+		CreatedAt:    row.CreatedAt.Time,
+		UpdatedAt:    row.UpdatedAt.Time,
+	}
+}
+
+func toTranscriptionModelWithProviderResponse(row sqlc.GetTranscriptionModelWithProviderRow) TranscriptionModelResponse {
+	var cfg map[string]any
+	if len(row.Config) > 0 {
+		_ = json.Unmarshal(row.Config, &cfg)
+	}
+	name := ""
+	if row.Name.Valid {
+		name = row.Name.String
+	}
+	return TranscriptionModelResponse{
 		ID:           row.ID.String(),
 		ModelID:      row.ModelID,
 		Name:         name,

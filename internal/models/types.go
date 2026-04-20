@@ -9,9 +9,10 @@ import (
 type ModelType string
 
 const (
-	ModelTypeChat      ModelType = "chat"
-	ModelTypeEmbedding ModelType = "embedding"
-	ModelTypeSpeech    ModelType = "speech"
+	ModelTypeChat          ModelType = "chat"
+	ModelTypeEmbedding     ModelType = "embedding"
+	ModelTypeSpeech        ModelType = "speech"
+	ModelTypeTranscription ModelType = "transcription"
 )
 
 type ClientType string
@@ -32,6 +33,7 @@ const (
 	ClientTypeVolcengineSpeech   ClientType = "volcengine-speech"
 	ClientTypeAlibabaSpeech      ClientType = "alibabacloud-speech"
 	ClientTypeMicrosoftSpeech    ClientType = "microsoft-speech"
+	ClientTypeGoogleSpeech       ClientType = "google-speech"
 )
 
 const (
@@ -88,7 +90,7 @@ func (m *Model) Validate() error {
 	if _, err := uuid.Parse(m.ProviderID); err != nil {
 		return errors.New("provider ID must be a valid UUID")
 	}
-	if m.Type != ModelTypeChat && m.Type != ModelTypeEmbedding && m.Type != ModelTypeSpeech {
+	if m.Type != ModelTypeChat && m.Type != ModelTypeEmbedding && m.Type != ModelTypeSpeech && m.Type != ModelTypeTranscription {
 		return errors.New("invalid model type")
 	}
 	if m.Type == ModelTypeEmbedding {

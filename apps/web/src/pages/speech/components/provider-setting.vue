@@ -138,7 +138,7 @@
     <section>
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-xs font-medium">
-          {{ $t('speech.models') }}
+          {{ $t('speech.synthesis.models') }}
         </h3>
         <LoadingButton
           v-if="curProviderId"
@@ -191,8 +191,74 @@
             :model-name="model.model_id ?? ''"
             :config="model.config || {}"
             :schema="getModelSchema(model.model_id ?? '')"
-            :on-test="(text, cfg) => handleTestModel(model.id ?? '', text, cfg)"
+            :on-test="(text, cfg) => handleTestModel(model.id ?? '', text as string, cfg)"
             @save="(cfg) => handleSaveModel(model.id ?? '', cfg)"
+          />
+        </div>
+      </div>
+    </section>
+
+    <Separator class="mt-6 mb-6" />
+
+    <section>
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xs font-medium">
+          {{ $t('speech.transcription.models') }}
+        </h3>
+        <LoadingButton
+          v-if="curProviderId"
+          type="button"
+          variant="outline"
+          size="sm"
+          :loading="importTranscriptionLoading"
+          @click="handleImportTranscriptionModels"
+        >
+          {{ $t('speech.transcription.importModels') }}
+        </LoadingButton>
+      </div>
+
+      <div
+        v-if="providerTranscriptionModels.length === 0"
+        class="text-xs text-muted-foreground py-4 text-center"
+      >
+        {{ $t('speech.transcription.noModels') }}
+      </div>
+
+      <div
+        v-for="model in providerTranscriptionModels"
+        :key="model.id"
+        class="border border-border rounded-lg mb-4"
+      >
+        <button
+          type="button"
+          class="w-full flex items-center justify-between p-3 text-left hover:bg-accent/50 rounded-t-lg transition-colors"
+          @click="toggleTranscriptionModel(model.id ?? '')"
+        >
+          <div>
+            <span class="text-xs font-medium">{{ model.name || model.model_id }}</span>
+            <span
+              v-if="model.name"
+              class="text-xs text-muted-foreground ml-2"
+            >{{ model.model_id }}</span>
+          </div>
+          <component
+            :is="expandedTranscriptionModelId === model.id ? ChevronUp : ChevronDown"
+            class="size-3 text-muted-foreground"
+          />
+        </button>
+
+        <div
+          v-if="expandedTranscriptionModelId === model.id"
+          class="px-3 pb-3 space-y-4 border-t border-border pt-3"
+        >
+          <ModelConfigEditor
+            :model-id="model.id ?? ''"
+            :model-name="model.model_id ?? ''"
+            :config="model.config || {}"
+            :schema="getTranscriptionModelSchema(model.model_id ?? '')"
+            mode="transcription"
+            :on-test="(file, cfg) => handleTestTranscriptionModel(model.id ?? '', file as File, cfg)"
+            @save="(cfg) => handleSaveTranscriptionModel(model.id ?? '', cfg)"
           />
         </div>
       </div>
@@ -218,7 +284,7 @@ import { computed, inject, reactive, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import { useQuery, useQueryCache } from '@pinia/colada'
-import { getSpeechProvidersById, getSpeechProvidersByIdModels, getSpeechProvidersMeta, postSpeechProvidersByIdImportModels, putModelsById, putProvidersById } from '@memohai/sdk'
+import { getSpeechProvidersById, getSpeechProvidersByIdModels, getSpeechProvidersMeta, postSpeechProvidersByIdImportModels, putProvidersById } from '@memohai/sdk'
 import type { TtsSpeechModelResponse, TtsSpeechProviderResponse } from '@memohai/sdk'
 import LoadingButton from '@/components/loading-button/index.vue'
 import ProviderIcon from '@/components/provider-icon/index.vue'
@@ -256,6 +322,10 @@ interface SpeechProviderMeta {
   config_schema?: SpeechConfigSchema
   default_model?: string
   models?: SpeechModelMeta[]
+  default_synthesis_model?: string
+  synthesis_models?: SpeechModelMeta[]
+  default_transcription_model?: string
+  transcription_models?: SpeechModelMeta[]
 }
 
 function getInitials(name: string | undefined) {
@@ -270,9 +340,11 @@ const providerName = ref('')
 const providerConfig = reactive<Record<string, unknown>>({})
 const visibleSecrets = reactive<Record<string, boolean>>({})
 const expandedModelId = ref('')
+const expandedTranscriptionModelId = ref('')
 const enableLoading = ref(false)
 const saveLoading = ref(false)
 const importLoading = ref(false)
+const importTranscriptionLoading = ref(false)
 const queryCache = useQueryCache()
 
 const { data: providerDetail } = useQuery({
@@ -297,7 +369,7 @@ const { data: metaList } = useQuery({
 
 const currentMeta = computed(() => {
   if (!metaList.value || !curProvider.value?.client_type) return null
-  return (metaList.value as SpeechProviderMeta[]).find((m) => m.provider === curProvider.value?.client_type) ?? null
+  return (metaList.value as SpeechProviderMeta[]).find(m => m.provider === curProvider.value?.client_type) ?? null
 })
 
 const orderedProviderFields = computed(() => {
@@ -317,9 +389,22 @@ const { data: providerSpeechModels } = useQuery({
   },
 })
 
-const providerModels = computed(() => {
-  return (providerSpeechModels.value as TtsSpeechModelResponse[] | undefined) ?? []
+const { data: providerTranscriptionModelsData } = useQuery({
+  key: () => ['speech-provider-transcription-models', curProviderId.value],
+  query: async () => {
+    if (!curProviderId.value) return []
+    const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
+    const token = localStorage.getItem('token')
+    const resp = await fetch(`${apiBase}/speech-providers/${curProviderId.value}/transcription-models`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+    if (!resp.ok) throw new Error(await resp.text())
+    return await resp.json()
+  },
 })
+
+const providerModels = computed(() => ((providerSpeechModels.value as TtsSpeechModelResponse[] | undefined) ?? []))
+const providerTranscriptionModels = computed(() => ((providerTranscriptionModelsData.value as TtsSpeechModelResponse[] | undefined) ?? []))
 
 watch(() => providerDetail.value, (provider) => {
   providerName.value = provider?.name ?? curProvider.value?.name ?? ''
@@ -328,12 +413,11 @@ watch(() => providerDetail.value, (provider) => {
 }, { immediate: true, deep: true })
 
 function getModelMeta(modelID: string): SpeechModelMeta | null {
-  const models = currentMeta.value?.models ?? []
+  const models = currentMeta.value?.synthesis_models ?? currentMeta.value?.models ?? []
   const exact = models.find(m => m.id === modelID)
   if (exact) return exact
-  if (currentMeta.value?.default_model) {
-    return models.find(m => m.id === currentMeta.value?.default_model) ?? null
-  }
+  const defaultModel = currentMeta.value?.default_synthesis_model ?? currentMeta.value?.default_model
+  if (defaultModel) return models.find(m => m.id === defaultModel) ?? null
   return models[0] ?? null
 }
 
@@ -342,8 +426,27 @@ function getModelSchema(modelID: string): SpeechConfigSchema | null {
   return meta?.config_schema ?? meta?.capabilities?.config_schema ?? null
 }
 
+function getTranscriptionModelMeta(modelID: string): SpeechModelMeta | null {
+  const models = currentMeta.value?.transcription_models ?? []
+  const exact = models.find(m => m.id === modelID)
+  if (exact) return exact
+  if (currentMeta.value?.default_transcription_model) {
+    return models.find(m => m.id === currentMeta.value?.default_transcription_model) ?? null
+  }
+  return models[0] ?? null
+}
+
+function getTranscriptionModelSchema(modelID: string): SpeechConfigSchema | null {
+  const meta = getTranscriptionModelMeta(modelID)
+  return meta?.config_schema ?? meta?.capabilities?.config_schema ?? null
+}
+
 function toggleModel(id: string) {
   expandedModelId.value = expandedModelId.value === id ? '' : id
+}
+
+function toggleTranscriptionModel(id: string) {
+  expandedTranscriptionModelId.value = expandedTranscriptionModelId.value === id ? '' : id
 }
 
 async function handleToggleEnable(value: boolean) {
@@ -398,23 +501,51 @@ async function handleSaveProvider() {
 }
 
 async function handleSaveModel(modelId: string, config: Record<string, unknown>) {
-  const model = providerModels.value.find((item) => item.id === modelId)
+  const model = providerModels.value.find(item => item.id === modelId)
   if (!model) return
   try {
-    await putModelsById({
-      path: { id: modelId },
-      body: {
-        model_id: model.model_id,
-        name: model.name ?? model.model_id,
-        provider_id: model.provider_id,
-        type: 'speech',
-        config,
+    const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
+    const token = localStorage.getItem('token')
+    const resp = await fetch(`${apiBase}/speech-models/${modelId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      throwOnError: true,
+      body: JSON.stringify({
+        name: model.name ?? model.model_id,
+        config,
+      }),
     })
+    if (!resp.ok) throw new Error(await resp.text())
     toast.success(t('speech.saveSuccess'))
     queryCache.invalidateQueries({ key: ['speech-provider-models', curProviderId.value] })
     queryCache.invalidateQueries({ key: ['speech-models'] })
+  } catch {
+    toast.error(t('common.saveFailed'))
+  }
+}
+
+async function handleSaveTranscriptionModel(modelId: string, config: Record<string, unknown>) {
+  const model = providerTranscriptionModels.value.find(item => item.id === modelId)
+  if (!model) return
+  try {
+    const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
+    const token = localStorage.getItem('token')
+    const resp = await fetch(`${apiBase}/transcription-models/${modelId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        name: model.name ?? model.model_id,
+        config,
+      }),
+    })
+    if (!resp.ok) throw new Error(await resp.text())
+    toast.success(t('speech.saveSuccess'))
+    queryCache.invalidateQueries({ key: ['speech-provider-transcription-models', curProviderId.value] })
   } catch {
     toast.error(t('common.saveFailed'))
   }
@@ -442,6 +573,31 @@ async function handleImportModels() {
   }
 }
 
+async function handleImportTranscriptionModels() {
+  if (!curProviderId.value) return
+  importTranscriptionLoading.value = true
+  try {
+    const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
+    const token = localStorage.getItem('token')
+    const resp = await fetch(`${apiBase}/speech-providers/${curProviderId.value}/import-transcription-models`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+    if (!resp.ok) throw new Error(await resp.text())
+    const data = await resp.json()
+    toast.success(t('speech.transcription.importSuccess', {
+      created: data?.created ?? 0,
+      skipped: data?.skipped ?? 0,
+    }))
+    queryCache.invalidateQueries({ key: ['speech-provider-transcription-models', curProviderId.value] })
+    queryCache.invalidateQueries({ key: ['speech-providers-meta'] })
+  } catch {
+    toast.error(t('speech.transcription.importFailed'))
+  } finally {
+    importTranscriptionLoading.value = false
+  }
+}
+
 async function handleTestModel(modelId: string, text: string, config: Record<string, unknown>) {
   const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
   const token = localStorage.getItem('token')
@@ -464,6 +620,24 @@ async function handleTestModel(modelId: string, text: string, config: Record<str
     throw new Error(msg)
   }
   return resp.blob()
+}
+
+async function handleTestTranscriptionModel(modelId: string, file: File, config: Record<string, unknown>) {
+  const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
+  const token = localStorage.getItem('token')
+  const form = new FormData()
+  form.append('file', file)
+  form.append('config', JSON.stringify(config))
+  const resp = await fetch(`${apiBase}/transcription-models/${modelId}/test`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  })
+  if (!resp.ok) {
+    const errBody = await resp.text()
+    throw new Error(errBody)
+  }
+  return await resp.json()
 }
 
 function sanitizeConfig(input: Record<string, unknown>) {

@@ -425,6 +425,20 @@
     "noModels": "No models found. Click \"Import Models\" to discover available models or \"Add Model\" to create one manually.",
     "noCapabilities": "No capabilities available for this model.",
     "saveSuccess": "Speech configuration saved",
+    "synthesis": {
+      "models": "Synthesis Models"
+    },
+    "transcription": {
+      "models": "Transcription Models",
+      "noModels": "No transcription models found. Import available models or keep the default template model.",
+      "importModels": "Import Transcription Models",
+      "importSuccess": "Transcription models imported successfully",
+      "importFailed": "Failed to import transcription models",
+      "test": {
+        "title": "Test Transcription",
+        "run": "Transcribe"
+      }
+    },
     "advanced": {
       "title": "Advanced Settings",
       "description": "These fields usually map to underlying vendor implementation details. Most users can keep the defaults."
@@ -920,6 +934,8 @@
       "memoryHealthUnavailable": "Unavailable",
       "ttsModel": "TTS Model",
       "ttsModelPlaceholder": "Select TTS model",
+      "transcriptionModel": "Transcription Model",
+      "transcriptionModelPlaceholder": "Select transcription model",
       "imageModel": "Image Generation Model",
       "imageModelDescription": "Model used for the generate_image tool. Must support image-output compatibility.",
       "imageModelPlaceholder": "Select image model (optional)",

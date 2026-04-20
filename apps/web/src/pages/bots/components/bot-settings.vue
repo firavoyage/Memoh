@@ -187,6 +187,17 @@
       />
     </div>
 
+    <!-- Transcription Model -->
+    <div class="space-y-2">
+      <Label>{{ $t('bots.settings.transcriptionModel') }}</Label>
+      <TtsModelSelect
+        v-model="form.transcription_model_id"
+        :models="transcriptionModels"
+        :providers="ttsProviders"
+        :placeholder="$t('bots.settings.transcriptionModelPlaceholder')"
+      />
+    </div>
+
     <!-- Image Generation Model -->
     <div class="space-y-2">
       <Label>{{ $t('bots.settings.imageModel') }}</Label>
@@ -357,6 +368,7 @@ import TtsModelSelect from './tts-model-select.vue'
 import BrowserContextSelect from './browser-context-select.vue'
 import { useQuery, useMutation, useQueryCache } from '@pinia/colada'
 import { getBotsById, putBotsById, getBotsByBotIdSettings, putBotsByBotIdSettings, deleteBotsById, getModels, getProviders, getSearchProviders, getMemoryProviders, getSpeechProviders, getSpeechModels, getBrowserContexts, getBotsByBotIdMemoryStatus, postBotsByBotIdMemoryRebuild } from '@memohai/sdk'
+import { client } from '@memohai/sdk/client'
 import type { SettingsSettings } from '@memohai/sdk'
 import type { Ref } from 'vue'
 import { resolveApiErrorMessage } from '@/utils/api-error'
@@ -440,6 +452,17 @@ const { data: ttsModelData } = useQuery({
   },
 })
 
+const { data: transcriptionModelData } = useQuery({
+  key: ['transcription-models'],
+  query: async () => {
+    const resp = await client.get({
+      url: '/transcription-models',
+      throwOnError: true,
+    })
+    return resp.data
+  },
+})
+
 const { data: browserContextData } = useQuery({
   key: ['all-browser-contexts'],
   query: async () => {
@@ -495,6 +518,7 @@ const memoryProviders = computed(() => memoryProviderData.value ?? [])
 const ttsProviders = computed(() => (ttsProviderData.value ?? []).filter((p) => p.enable !== false))
 const enabledTtsProviderIds = computed(() => new Set(ttsProviders.value.map((p) => p.id)))
 const ttsModels = computed(() => (ttsModelData.value ?? []).filter((m: Record<string, unknown>) => enabledTtsProviderIds.value.has(m.provider_id as string)))
+const transcriptionModels = computed(() => (transcriptionModelData.value ?? []).filter((m: Record<string, unknown>) => enabledTtsProviderIds.value.has(m.provider_id as string)))
 const browserContexts = computed(() => browserContextData.value ?? [])
 
 // ---- Form ----
@@ -505,6 +529,7 @@ const form = reactive({
   search_provider_id: '',
   memory_provider_id: '',
   tts_model_id: '',
+  transcription_model_id: '',
   browser_context_id: '',
   timezone: '',
   language: '',
@@ -644,6 +669,7 @@ watch(settings, (val) => {
     form.search_provider_id = val.search_provider_id ?? ''
     form.memory_provider_id = val.memory_provider_id ?? ''
     form.tts_model_id = val.tts_model_id ?? ''
+    form.transcription_model_id = val.transcription_model_id ?? ''
     form.browser_context_id = val.browser_context_id ?? ''
     form.language = val.language ?? ''
     form.timezone = val.timezone ?? ''
@@ -666,6 +692,7 @@ const hasSettingsChanges = computed(() => {
     || form.search_provider_id !== (s.search_provider_id ?? '')
     || form.memory_provider_id !== (s.memory_provider_id ?? '')
     || form.tts_model_id !== (s.tts_model_id ?? '')
+    || form.transcription_model_id !== (s.transcription_model_id ?? '')
     || form.browser_context_id !== (s.browser_context_id ?? '')
     || form.language !== (s.language ?? '')
     || form.timezone !== (s.timezone ?? '')

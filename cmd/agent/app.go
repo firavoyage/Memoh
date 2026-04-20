@@ -373,6 +373,7 @@ func provideChannelRouter(
 	processor.SetStreamObserver(local.NewRouteHubBroadcaster(hub))
 	processor.SetDispatcher(inbound.NewRouteDispatcher(log))
 	processor.SetTtsService(ttsService, &settingsTtsModelResolver{settings: settingsService})
+	processor.SetTranscriptionService(&settingsTranscriptionAdapter{tts: ttsService}, &settingsTranscriptionModelResolver{settings: settingsService})
 	cmdHandler := command.NewHandler(
 		log,
 		&command.BotMemberRoleAdapter{BotService: botService},
@@ -468,6 +469,7 @@ func provideToolProviders(log *slog.Logger, cfg config.Config, channelManager *c
 		agenttools.NewSkillProvider(log),
 		agenttools.NewBrowserProvider(log, settingsService, browserContextService, manager, cfg.BrowserGateway),
 		agenttools.NewTTSProvider(log, settingsService, ttsService, channelManager, registry),
+		agenttools.NewTranscriptionProvider(log, settingsService, ttsService, mediaService),
 		agenttools.NewImageGenProvider(log, settingsService, modelsService, queries, manager, config.DefaultDataMount),
 		agenttools.NewFederationProvider(log, fedSource),
 		agenttools.NewHistoryProvider(log, sessionService, queries),
@@ -593,6 +595,36 @@ func (r *settingsTtsModelResolver) ResolveTtsModelID(ctx context.Context, botID 
 		return "", err
 	}
 	return s.TtsModelID, nil
+}
+
+type settingsTranscriptionModelResolver struct {
+	settings *settings.Service
+}
+
+func (r *settingsTranscriptionModelResolver) ResolveTranscriptionModelID(ctx context.Context, botID string) (string, error) {
+	s, err := r.settings.GetBot(ctx, botID)
+	if err != nil {
+		return "", err
+	}
+	return s.TranscriptionModelID, nil
+}
+
+type settingsTranscriptionAdapter struct {
+	tts *ttspkg.Service
+}
+
+type inboundTranscriptionResult struct {
+	text string
+}
+
+func (r inboundTranscriptionResult) GetText() string { return r.text }
+
+func (a *settingsTranscriptionAdapter) Transcribe(ctx context.Context, modelID string, audio []byte, filename string, contentType string, overrideCfg map[string]any) (inbound.TranscriptionResult, error) {
+	result, err := a.tts.Transcribe(ctx, modelID, audio, filename, contentType, overrideCfg)
+	if err != nil {
+		return nil, err
+	}
+	return inboundTranscriptionResult{text: result.Text}, nil
 }
 
 func provideEmailRegistry(log *slog.Logger, tokenStore *emailpkg.DBOAuthTokenStore) *emailpkg.Registry {

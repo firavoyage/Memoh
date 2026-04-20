@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -34,12 +37,22 @@ func (h *SpeechHandler) Register(e *echo.Echo) {
 	pg.GET("/meta", h.ListMeta)
 	pg.GET("/:id/models", h.ListModelsByProvider)
 	pg.POST("/:id/import-models", h.ImportModels)
+	pg.GET("/:id/transcription-models", h.ListTranscriptionModelsByProvider)
+	pg.POST("/:id/import-transcription-models", h.ImportTranscriptionModels)
 
 	mg := e.Group("/speech-models")
 	mg.GET("", h.ListModels)
 	mg.GET("/:id", h.GetModel)
+	mg.PUT("/:id", h.UpdateModel)
 	mg.GET("/:id/capabilities", h.GetModelCapabilities)
 	mg.POST("/:id/test", h.TestModel)
+
+	tg := e.Group("/transcription-models")
+	tg.GET("", h.ListTranscriptionModels)
+	tg.GET("/:id", h.GetTranscriptionModel)
+	tg.PUT("/:id", h.UpdateTranscriptionModel)
+	tg.GET("/:id/capabilities", h.GetTranscriptionModelCapabilities)
+	tg.POST("/:id/test", h.TestTranscriptionModel)
 }
 
 // ListMeta godoc
@@ -167,6 +180,61 @@ func (h *SpeechHandler) ImportModels(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+func (h *SpeechHandler) ListTranscriptionModelsByProvider(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+	items, err := h.service.ListTranscriptionModelsByProvider(c.Request().Context(), id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(http.StatusOK, items)
+}
+
+func (h *SpeechHandler) ImportTranscriptionModels(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+
+	remoteModels, err := h.service.FetchRemoteTranscriptionModels(c.Request().Context(), id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("fetch remote transcription models: %v", err))
+	}
+
+	resp := tts.ImportModelsResponse{
+		Models: make([]string, 0, len(remoteModels)),
+	}
+
+	for _, model := range remoteModels {
+		name := strings.TrimSpace(model.Name)
+		if name == "" {
+			name = model.ID
+		}
+
+		_, err := h.modelsService.Create(c.Request().Context(), models.AddRequest{
+			ModelID:    model.ID,
+			Name:       name,
+			ProviderID: id,
+			Type:       models.ModelTypeTranscription,
+			Config:     models.ModelConfig{},
+		})
+		if err != nil {
+			if errors.Is(err, models.ErrModelIDAlreadyExists) {
+				resp.Skipped++
+				continue
+			}
+			h.logger.Warn("failed to import transcription model", slog.String("model_id", model.ID), slog.Any("error", err))
+			continue
+		}
+		resp.Created++
+		resp.Models = append(resp.Models, model.ID)
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
 // ListModels godoc
 // @Summary List all speech models
 // @Description List all models of type 'speech' (filtered view of unified models table)
@@ -177,6 +245,14 @@ func (h *SpeechHandler) ImportModels(c echo.Context) error {
 // @Router /speech-models [get].
 func (h *SpeechHandler) ListModels(c echo.Context) error {
 	items, err := h.service.ListSpeechModels(c.Request().Context())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(http.StatusOK, items)
+}
+
+func (h *SpeechHandler) ListTranscriptionModels(c echo.Context) error {
+	items, err := h.service.ListTranscriptionModels(c.Request().Context())
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -203,6 +279,50 @@ func (h *SpeechHandler) GetModel(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+func (h *SpeechHandler) UpdateModel(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+	var req tts.UpdateSpeechModelRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	resp, err := h.service.UpdateSpeechModel(c.Request().Context(), id, req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (h *SpeechHandler) GetTranscriptionModel(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+	resp, err := h.service.GetTranscriptionModel(c.Request().Context(), id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (h *SpeechHandler) UpdateTranscriptionModel(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+	var req tts.UpdateSpeechModelRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	resp, err := h.service.UpdateTranscriptionModel(c.Request().Context(), id, req)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
 // GetModelCapabilities godoc
 // @Summary Get speech model capabilities
 // @Tags speech-models
@@ -217,6 +337,18 @@ func (h *SpeechHandler) GetModelCapabilities(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
 	}
 	caps, err := h.service.GetModelCapabilities(c.Request().Context(), id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+	return c.JSON(http.StatusOK, caps)
+}
+
+func (h *SpeechHandler) GetTranscriptionModelCapabilities(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+	caps, err := h.service.GetTranscriptionModelCapabilities(c.Request().Context(), id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
@@ -257,4 +389,57 @@ func (h *SpeechHandler) TestModel(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 	return c.Blob(http.StatusOK, contentType, audio)
+}
+
+func (h *SpeechHandler) TestTranscriptionModel(c echo.Context) error {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "id is required")
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "file is required")
+	}
+	src, err := file.Open()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	defer func(src multipart.File) {
+		err := src.Close()
+		if err != nil {
+			h.logger.Warn("failed to close uploaded file", slog.Any("error", err))
+		}
+	}(src)
+	audio, err := io.ReadAll(src)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	var cfg map[string]any
+	if raw := strings.TrimSpace(c.FormValue("config")); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid config")
+		}
+	}
+	result, err := h.service.Transcribe(c.Request().Context(), id, audio, file.Filename, file.Header.Get("Content-Type"), cfg)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	resp := tts.TestTranscriptionResponse{
+		Text:            result.Text,
+		Language:        result.Language,
+		DurationSeconds: result.DurationSeconds,
+		Metadata:        result.ProviderMetadata,
+	}
+	if len(result.Words) > 0 {
+		resp.Words = make([]tts.TranscriptionWord, 0, len(result.Words))
+		for _, word := range result.Words {
+			resp.Words = append(resp.Words, tts.TranscriptionWord{
+				Text:      word.Text,
+				Start:     word.Start,
+				End:       word.End,
+				SpeakerID: word.SpeakerID,
+			})
+		}
+	}
+	return c.JSON(http.StatusOK, resp)
 }

@@ -80,6 +80,11 @@ export const CLIENT_TYPE_META: Record<string, ClientTypeMeta> = {
     label: 'Microsoft Speech',
     hint: 'Azure Cognitive Services TTS',
   },
+  'google-speech': {
+    value: 'google-speech',
+    label: 'Google Speech',
+    hint: 'Gemini speech transcription',
+  },
 }
 
 export const CLIENT_TYPE_LIST: ClientTypeMeta[] = Object.values(CLIENT_TYPE_META)
