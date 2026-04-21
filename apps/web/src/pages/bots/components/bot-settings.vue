@@ -367,8 +367,7 @@ import MemoryProviderSelect from './memory-provider-select.vue'
 import TtsModelSelect from './tts-model-select.vue'
 import BrowserContextSelect from './browser-context-select.vue'
 import { useQuery, useMutation, useQueryCache } from '@pinia/colada'
-import { getBotsById, putBotsById, getBotsByBotIdSettings, putBotsByBotIdSettings, deleteBotsById, getModels, getProviders, getSearchProviders, getMemoryProviders, getSpeechProviders, getSpeechModels, getBrowserContexts, getBotsByBotIdMemoryStatus, postBotsByBotIdMemoryRebuild } from '@memohai/sdk'
-import { client } from '@memohai/sdk/client'
+import { getBotsById, putBotsById, getBotsByBotIdSettings, putBotsByBotIdSettings, deleteBotsById, getModels, getProviders, getSearchProviders, getMemoryProviders, getSpeechProviders, getSpeechModels, getTranscriptionProviders, getTranscriptionModels, getBrowserContexts, getBotsByBotIdMemoryStatus, postBotsByBotIdMemoryRebuild } from '@memohai/sdk'
 import type { SettingsSettings } from '@memohai/sdk'
 import type { Ref } from 'vue'
 import { resolveApiErrorMessage } from '@/utils/api-error'
@@ -455,22 +454,16 @@ const { data: ttsModelData } = useQuery({
 const { data: transcriptionModelData } = useQuery({
   key: ['transcription-models'],
   query: async () => {
-    const resp = await client.get({
-      url: '/transcription-models',
-      throwOnError: true,
-    })
-    return resp.data
+    const { data } = await getTranscriptionModels({ throwOnError: true })
+    return data
   },
 })
 
 const { data: transcriptionProviderData } = useQuery({
   key: ['transcription-providers'],
   query: async () => {
-    const resp = await client.get({
-      url: '/transcription-providers',
-      throwOnError: true,
-    })
-    return resp.data
+    const { data } = await getTranscriptionProviders({ throwOnError: true })
+    return data
   },
 })
 

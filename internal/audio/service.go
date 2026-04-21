@@ -1,4 +1,4 @@
-package tts
+package audio
 
 import (
 	"context"
@@ -24,7 +24,7 @@ type Service struct {
 func NewService(log *slog.Logger, queries *sqlc.Queries, registry *Registry) *Service {
 	return &Service{
 		queries:  queries,
-		logger:   log.With(slog.String("service", "tts")),
+		logger:   log.With(slog.String("service", "audio")),
 		registry: registry,
 	}
 }

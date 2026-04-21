@@ -13,8 +13,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@memohai/ui'
-import { client } from '@memohai/sdk/client'
-import type { TtsSpeechProviderResponse } from '@memohai/sdk'
+import { getTranscriptionProviders } from '@memohai/sdk'
+import type { AudioSpeechProviderResponse } from '@memohai/sdk'
 import ProviderSetting from './provider-setting.vue'
 import { AudioLines } from 'lucide-vue-next'
 import MasterDetailSidebarLayout from '@/components/master-detail-sidebar-layout/index.vue'
@@ -28,12 +28,12 @@ function getInitials(name: string | undefined) {
 const { data: providerData } = useQuery({
   key: () => ['transcription-providers'],
   query: async () => {
-    const { data } = await client.get({ url: '/transcription-providers' })
-    return (data ?? []) as TtsSpeechProviderResponse[]
+    const { data } = await getTranscriptionProviders({ throwOnError: true })
+    return (data ?? []) as AudioSpeechProviderResponse[]
   },
 })
-const curProvider = ref<TtsSpeechProviderResponse>()
-provide('curTtsProvider', curProvider)
+const curProvider = ref<AudioSpeechProviderResponse>()
+provide('curTranscriptionProvider', curProvider)
 
 const selectProvider = (name: string) => computed(() => curProvider.value?.name === name)
 

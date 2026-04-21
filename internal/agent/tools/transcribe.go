@@ -16,9 +16,9 @@ import (
 
 	sdk "github.com/memohai/twilight-ai/sdk"
 
+	audiopkg "github.com/memohai/memoh/internal/audio"
 	"github.com/memohai/memoh/internal/media"
 	"github.com/memohai/memoh/internal/settings"
-	ttspkg "github.com/memohai/memoh/internal/tts"
 )
 
 const mediaDataPrefix = "/data/media/"
@@ -26,19 +26,19 @@ const mediaDataPrefix = "/data/media/"
 type TranscriptionProvider struct {
 	logger   *slog.Logger
 	settings *settings.Service
-	tts      *ttspkg.Service
+	audio    *audiopkg.Service
 	media    *media.Service
 	http     *http.Client
 }
 
-func NewTranscriptionProvider(log *slog.Logger, settingsSvc *settings.Service, ttsSvc *ttspkg.Service, mediaSvc *media.Service) *TranscriptionProvider {
+func NewTranscriptionProvider(log *slog.Logger, settingsSvc *settings.Service, audioSvc *audiopkg.Service, mediaSvc *media.Service) *TranscriptionProvider {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &TranscriptionProvider{
 		logger:   log.With(slog.String("tool", "transcribe_audio")),
 		settings: settingsSvc,
-		tts:      ttsSvc,
+		audio:    audioSvc,
 		media:    mediaSvc,
 		http: &http.Client{
 			Timeout: 30 * time.Second,
@@ -56,7 +56,7 @@ func NewTranscriptionProvider(log *slog.Logger, settingsSvc *settings.Service, t
 }
 
 func (p *TranscriptionProvider) Tools(ctx context.Context, session SessionContext) ([]sdk.Tool, error) {
-	if session.IsSubagent || p.settings == nil || p.tts == nil || p.media == nil {
+	if session.IsSubagent || p.settings == nil || p.audio == nil || p.media == nil {
 		return nil, nil
 	}
 	botID := strings.TrimSpace(session.BotID)
@@ -120,7 +120,7 @@ func (p *TranscriptionProvider) execTranscribe(ctx context.Context, session Sess
 	if prompt := FirstStringArg(args, "prompt"); prompt != "" {
 		override["prompt"] = prompt
 	}
-	result, err := p.tts.Transcribe(ctx, modelID, audio, filename, contentType, override)
+	result, err := p.audio.Transcribe(ctx, modelID, audio, filename, contentType, override)
 	if err != nil {
 		return nil, err
 	}

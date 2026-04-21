@@ -135,7 +135,7 @@
     <section>
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-xs font-medium">
-          {{ $t('speech.transcription.models') }}
+          {{ $t('transcription.models') }}
         </h3>
         <div
           v-if="curProviderId"
@@ -148,7 +148,7 @@
             :loading="importLoading"
             @click="handleImportModels"
           >
-            {{ $t('speech.transcription.importModels') }}
+            {{ $t('transcription.importModels') }}
           </LoadingButton>
           <CreateModel
             :id="curProviderId"
@@ -164,7 +164,7 @@
         v-if="providerModels.length === 0"
         class="text-xs text-muted-foreground py-4 text-center"
       >
-        {{ $t('speech.transcription.noModels') }}
+        {{ $t('transcription.noModels') }}
       </div>
 
       <div
@@ -215,9 +215,21 @@ import { computed, inject, reactive, ref, watch } from 'vue'
 import { useQuery, useQueryCache } from '@pinia/colada'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
-import { client } from '@memohai/sdk/client'
-import type { TtsSpeechModelResponse, TtsSpeechProviderResponse } from '@memohai/sdk'
-import { putProvidersById } from '@memohai/sdk'
+import {
+  getTranscriptionProvidersById,
+  getTranscriptionProvidersMeta,
+  getTranscriptionProvidersByIdModels,
+  postTranscriptionProvidersByIdImportModels,
+  postTranscriptionModelsByIdTest,
+  putProvidersById,
+  putTranscriptionModelsById,
+} from '@memohai/sdk'
+import type {
+  AudioProviderMetaResponse,
+  AudioSpeechProviderResponse,
+  AudioTestTranscriptionResponse,
+  AudioTranscriptionModelResponse,
+} from '@memohai/sdk'
 import { ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-vue-next'
 import { Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Separator, Switch } from '@memohai/ui'
 import ProviderIcon from '@/components/provider-icon/index.vue'
@@ -230,7 +242,7 @@ interface ConfigSchema { fields?: FieldSchema[] }
 interface ModelMeta { id: string, name: string, config_schema?: ConfigSchema, capabilities?: { config_schema?: ConfigSchema } }
 interface ProviderMeta {
   provider: string
-  display_name: string
+  display_name?: string
   config_schema?: ConfigSchema
   default_transcription_model?: string
   transcription_models?: ModelMeta[]
@@ -242,8 +254,52 @@ function getInitials(name: string | undefined) {
   return label ? label.slice(0, 2).toUpperCase() : '?'
 }
 
+function normalizeConfigSchema(schema?: AudioProviderMetaResponse['config_schema']): ConfigSchema | undefined {
+  if (!schema) return undefined
+  const fields: FieldSchema[] = []
+  for (const field of schema.fields ?? []) {
+    if (!field?.key || !field.type) continue
+    fields.push({
+      key: field.key,
+      type: field.type,
+      title: field.title,
+      description: field.description,
+      enum: field.enum,
+      order: field.order,
+    })
+  }
+  return { fields }
+}
+
+function normalizeModelMeta(model: NonNullable<AudioProviderMetaResponse['models']>[number]): ModelMeta | null {
+  if (!model?.id) return null
+  return {
+    id: model.id,
+    name: model.name ?? model.id,
+    config_schema: normalizeConfigSchema(model.config_schema),
+    capabilities: model.capabilities
+      ? { config_schema: normalizeConfigSchema(model.capabilities.config_schema) }
+      : undefined,
+  }
+}
+
+function normalizeProviderMeta(meta: AudioProviderMetaResponse): ProviderMeta {
+  return {
+    provider: meta.provider ?? '',
+    display_name: meta.display_name,
+    config_schema: normalizeConfigSchema(meta.config_schema),
+    default_transcription_model: meta.default_transcription_model,
+    transcription_models: (meta.transcription_models ?? [])
+      .map(normalizeModelMeta)
+      .filter((model): model is ModelMeta => model !== null),
+    models: (meta.models ?? [])
+      .map(normalizeModelMeta)
+      .filter((model): model is ModelMeta => model !== null),
+  }
+}
+
 const { t } = useI18n()
-const curProvider = inject('curTtsProvider', ref<TtsSpeechProviderResponse>())
+const curProvider = inject('curTranscriptionProvider', ref<AudioSpeechProviderResponse>())
 const curProviderId = computed(() => curProvider.value?.id)
 const providerName = ref('')
 const providerConfig = reactive<Record<string, unknown>>({})
@@ -258,19 +314,22 @@ const transcriptionTypeOptions = [
 ]
 
 const { data: providerDetail } = useQuery({
-  key: () => ['transcription-provider-detail', curProviderId.value],
+  key: () => ['transcription-provider-detail', curProviderId.value ?? ''],
   query: async () => {
     if (!curProviderId.value) return null
-    const { data } = await client.get({ url: `/transcription-providers/${curProviderId.value}` })
-    return (data ?? null) as TtsSpeechProviderResponse | null
+    const { data } = await getTranscriptionProvidersById({
+      path: { id: curProviderId.value },
+      throwOnError: true,
+    })
+    return (data ?? null) as AudioSpeechProviderResponse | null
   },
 })
 
 const { data: metaList } = useQuery({
   key: () => ['transcription-providers-meta'],
   query: async () => {
-    const { data } = await client.get({ url: '/transcription-providers/meta' })
-    return (data ?? []) as ProviderMeta[]
+    const { data } = await getTranscriptionProvidersMeta({ throwOnError: true })
+    return (data ?? []).map(normalizeProviderMeta)
   },
 })
 
@@ -278,11 +337,14 @@ const currentMeta = computed(() => (metaList.value ?? []).find(m => m.provider =
 const orderedProviderFields = computed(() => [...(currentMeta.value?.config_schema?.fields ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
 
 const { data: providerModelData } = useQuery({
-  key: () => ['transcription-provider-models', curProviderId.value],
+  key: () => ['transcription-provider-models', curProviderId.value ?? ''],
   query: async () => {
     if (!curProviderId.value) return []
-    const { data } = await client.get({ url: `/transcription-providers/${curProviderId.value}/models` })
-    return (data ?? []) as TtsSpeechModelResponse[]
+    const { data } = await getTranscriptionProvidersByIdModels({
+      path: { id: curProviderId.value },
+      throwOnError: true,
+    })
+    return (data ?? []) as AudioTranscriptionModelResponse[]
   },
 })
 
@@ -306,7 +368,7 @@ function toggleModel(id: string) {
 }
 
 async function handleToggleEnable(value: boolean) {
-  if (!curProviderId.value || !curProvider.value) return
+  if (!curProviderId.value || !curProvider.value?.client_type) return
   const prev = curProvider.value.enable ?? false
   curProvider.value = { ...curProvider.value, enable: value }
   enableLoading.value = true
@@ -314,7 +376,7 @@ async function handleToggleEnable(value: boolean) {
     await putProvidersById({
       path: { id: curProviderId.value },
       body: {
-        name: providerName.value.trim() || curProvider.value.name,
+        name: providerName.value.trim() || curProvider.value.name || '',
         client_type: curProvider.value.client_type,
         enable: value,
         config: sanitizeConfig(providerConfig),
@@ -322,7 +384,7 @@ async function handleToggleEnable(value: boolean) {
       throwOnError: true,
     })
     queryCache.invalidateQueries({ key: ['transcription-providers'] })
-    queryCache.invalidateQueries({ key: ['transcription-provider-detail', curProviderId.value] })
+    queryCache.invalidateQueries({ key: ['transcription-provider-detail', curProviderId.value ?? ''] })
   } catch {
     curProvider.value = { ...curProvider.value, enable: prev }
     toast.error(t('common.saveFailed'))
@@ -332,22 +394,22 @@ async function handleToggleEnable(value: boolean) {
 }
 
 async function handleSaveProvider() {
-  if (!curProviderId.value || !curProvider.value) return
+  if (!curProviderId.value || !curProvider.value?.client_type) return
   saveLoading.value = true
   try {
     await putProvidersById({
       path: { id: curProviderId.value },
       body: {
-        name: providerName.value.trim() || curProvider.value.name,
+        name: providerName.value.trim() || curProvider.value.name || '',
         client_type: curProvider.value.client_type,
         enable: curProvider.value.enable,
         config: sanitizeConfig(providerConfig),
       },
       throwOnError: true,
     })
-    toast.success(t('speech.saveSuccess'))
+    toast.success(t('transcription.saveSuccess'))
     queryCache.invalidateQueries({ key: ['transcription-providers'] })
-    queryCache.invalidateQueries({ key: ['transcription-provider-detail', curProviderId.value] })
+    queryCache.invalidateQueries({ key: ['transcription-provider-detail', curProviderId.value ?? ''] })
   } catch {
     toast.error(t('common.saveFailed'))
   } finally {
@@ -359,12 +421,13 @@ async function handleSaveModel(modelId: string, config: Record<string, unknown>)
   const model = providerModels.value.find(item => item.id === modelId)
   if (!model) return
   try {
-    await client.put({
-      url: `/transcription-models/${modelId}`,
-      body: { name: model.name ?? model.model_id, config },
+    await putTranscriptionModelsById({
+      path: { id: modelId },
+      body: { name: model.name ?? model.model_id ?? modelId, config },
+      throwOnError: true,
     })
-    toast.success(t('speech.saveSuccess'))
-    queryCache.invalidateQueries({ key: ['transcription-provider-models', curProviderId.value] })
+    toast.success(t('transcription.saveSuccess'))
+    queryCache.invalidateQueries({ key: ['transcription-provider-models', curProviderId.value ?? ''] })
     queryCache.invalidateQueries({ key: ['transcription-models'] })
   } catch {
     toast.error(t('common.saveFailed'))
@@ -375,35 +438,35 @@ async function handleImportModels() {
   if (!curProviderId.value) return
   importLoading.value = true
   try {
-    const { data } = await client.post({ url: `/transcription-providers/${curProviderId.value}/import-models` })
+    const { data } = await postTranscriptionProvidersByIdImportModels({
+      path: { id: curProviderId.value },
+      throwOnError: true,
+    })
     const payload = (data ?? {}) as { created?: number, skipped?: number }
-    toast.success(t('speech.transcription.importSuccess', {
+    toast.success(t('transcription.importSuccess', {
       created: payload.created ?? 0,
       skipped: payload.skipped ?? 0,
     }))
-    queryCache.invalidateQueries({ key: ['transcription-provider-models', curProviderId.value] })
+    queryCache.invalidateQueries({ key: ['transcription-provider-models', curProviderId.value ?? ''] })
     queryCache.invalidateQueries({ key: ['transcription-models'] })
     queryCache.invalidateQueries({ key: ['transcription-providers-meta'] })
   } catch {
-    toast.error(t('speech.transcription.importFailed'))
+    toast.error(t('transcription.importFailed'))
   } finally {
     importLoading.value = false
   }
 }
 
 async function handleTestModel(modelId: string, file: File, config: Record<string, unknown>) {
-  const form = new FormData()
-  form.append('file', file)
-  form.append('config', JSON.stringify(config))
-  const apiBase = import.meta.env.VITE_API_URL?.trim() || '/api'
-  const token = localStorage.getItem('token')
-  const resp = await fetch(`${apiBase}/transcription-models/${modelId}/test`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: form,
+  const { data } = await postTranscriptionModelsByIdTest({
+    path: { id: modelId },
+    body: {
+      file,
+      config: JSON.stringify(config),
+    },
+    throwOnError: true,
   })
-  if (!resp.ok) throw new Error(await resp.text())
-  return await resp.json()
+  return (data ?? {}) as AudioTestTranscriptionResponse
 }
 
 function sanitizeConfig(input: Record<string, unknown>) {

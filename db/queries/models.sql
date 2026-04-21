@@ -16,6 +16,9 @@ SELECT * FROM providers WHERE id = sqlc.arg(id);
 -- name: GetProviderByName :one
 SELECT * FROM providers WHERE name = sqlc.arg(name);
 
+-- name: GetProviderByClientType :one
+SELECT * FROM providers WHERE client_type = sqlc.arg(client_type);
+
 -- name: ListProviders :many
 SELECT * FROM providers
 WHERE client_type NOT IN (

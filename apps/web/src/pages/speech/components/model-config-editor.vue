@@ -85,7 +85,7 @@
       v-else-if="advancedFields.length === 0"
       class="text-xs text-muted-foreground"
     >
-      {{ $t('speech.noCapabilities') }}
+      {{ mode === 'transcription' ? $t('transcription.noCapabilities') : $t('speech.noCapabilities') }}
     </div>
 
     <div
@@ -97,7 +97,7 @@
         class="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium"
         @click="showAdvanced = !showAdvanced"
       >
-        <span>{{ $t('speech.advanced.title') }}</span>
+        <span>{{ mode === 'transcription' ? $t('transcription.advanced.title') : $t('speech.advanced.title') }}</span>
         <component
           :is="showAdvanced ? ChevronUp : ChevronDown"
           class="size-3 text-muted-foreground"
@@ -108,7 +108,7 @@
         class="space-y-4 border-t border-border px-3 py-3"
       >
         <p class="text-xs text-muted-foreground">
-          {{ $t('speech.advanced.description') }}
+          {{ mode === 'transcription' ? $t('transcription.advanced.description') : $t('speech.advanced.description') }}
         </p>
         <section
           v-for="field in advancedFields"
@@ -195,7 +195,7 @@
 
     <div class="space-y-3">
       <h4 class="text-xs font-medium">
-        {{ mode === 'transcription' ? $t('speech.transcription.test.title') : $t('speech.test.title') }}
+        {{ mode === 'transcription' ? $t('transcription.test.title') : $t('speech.test.title') }}
       </h4>
       <div
         v-if="mode === 'synthesis'"
@@ -241,7 +241,7 @@
             v-if="mode === 'synthesis'"
             class="mr-1.5"
           />
-          {{ mode === 'transcription' ? $t('speech.transcription.test.run') : $t('speech.test.generate') }}
+          {{ mode === 'transcription' ? $t('transcription.test.run') : $t('speech.test.generate') }}
         </LoadingButton>
         <span
           v-if="testError"
@@ -265,7 +265,7 @@
         v-if="mode === 'transcription' && transcriptionText"
         class="rounded-md border border-border bg-muted/30 p-3 space-y-2"
       >
-        <p class="text-sm whitespace-pre-wrap break-words">
+        <p class="text-sm whitespace-pre-wrap wrap-break-word">
           {{ transcriptionText }}
         </p>
         <p
@@ -428,7 +428,7 @@ async function handleTest() {
       transcriptionLanguage.value = payload.language ?? ''
     }
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : t('speech.test.failed')
+    const msg = error instanceof Error ? error.message : t(mode.value === 'transcription' ? 'transcription.test.failed' : 'speech.test.failed')
     testError.value = msg
     toast.error(msg)
   } finally {

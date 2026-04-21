@@ -318,6 +318,27 @@ func (q *Queries) GetModelByProviderAndModelID(ctx context.Context, arg GetModel
 	return i, err
 }
 
+const getProviderByClientType = `-- name: GetProviderByClientType :one
+SELECT id, name, client_type, icon, enable, config, metadata, created_at, updated_at FROM providers WHERE client_type = $1
+`
+
+func (q *Queries) GetProviderByClientType(ctx context.Context, clientType string) (Provider, error) {
+	row := q.db.QueryRow(ctx, getProviderByClientType, clientType)
+	var i Provider
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ClientType,
+		&i.Icon,
+		&i.Enable,
+		&i.Config,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProviderByID = `-- name: GetProviderByID :one
 SELECT id, name, client_type, icon, enable, config, metadata, created_at, updated_at FROM providers WHERE id = $1
 `

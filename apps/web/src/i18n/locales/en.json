@@ -429,17 +429,6 @@
     "synthesis": {
       "models": "Synthesis Models"
     },
-    "transcription": {
-      "models": "Transcription Models",
-      "noModels": "No transcription models found. Import available models or keep the default template model.",
-      "importModels": "Import Transcription Models",
-      "importSuccess": "Transcription models imported successfully",
-      "importFailed": "Failed to import transcription models",
-      "test": {
-        "title": "Test Transcription",
-        "run": "Transcribe"
-      }
-    },
     "advanced": {
       "title": "Advanced Settings",
       "description": "These fields usually map to underlying vendor implementation details. Most users can keep the defaults."
@@ -466,7 +455,23 @@
   "transcription": {
     "title": "Transcription",
     "emptyTitle": "No Transcription Providers",
-    "emptyDescription": "Add a transcription provider to enable speech-to-text for your bots"
+    "emptyDescription": "Add a transcription provider to enable speech-to-text for your bots",
+    "models": "Transcription Models",
+    "noModels": "No transcription models found. Import available models or keep the default template model.",
+    "noCapabilities": "No capabilities available for this model.",
+    "importModels": "Import Models",
+    "importSuccess": "Transcription models imported successfully",
+    "importFailed": "Failed to import transcription models",
+    "saveSuccess": "Transcription configuration saved",
+    "advanced": {
+      "title": "Advanced Settings",
+      "description": "These fields usually map to underlying vendor implementation details. Most users can keep the defaults."
+    },
+    "test": {
+      "title": "Test Transcription",
+      "run": "Transcribe",
+      "failed": "Transcription failed"
+    }
   },
   "email": {
     "title": "Email",

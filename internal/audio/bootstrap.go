@@ -1,11 +1,13 @@
-package tts
+package audio
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/memohai/memoh/internal/db/sqlc"
@@ -14,23 +16,23 @@ import (
 
 func SyncRegistry(ctx context.Context, logger *slog.Logger, queries *sqlc.Queries, registry *Registry) error {
 	for _, def := range registry.List() {
-		configJSON, err := json.Marshal(map[string]any{})
+		provider, err := queries.GetProviderByClientType(ctx, string(def.ClientType))
 		if err != nil {
-			return fmt.Errorf("marshal speech provider config: %w", err)
-		}
-		var icon pgtype.Text
-		if def.Icon != "" {
-			icon = pgtype.Text{String: def.Icon, Valid: true}
-		}
-
-		provider, err := queries.UpsertRegistryProvider(ctx, sqlc.UpsertRegistryProviderParams{
-			Name:       def.DisplayName,
-			ClientType: string(def.ClientType),
-			Icon:       icon,
-			Config:     configJSON,
-		})
-		if err != nil {
-			return fmt.Errorf("upsert speech provider %s: %w", def.ClientType, err)
+			if errors.Is(err, pgx.ErrNoRows) {
+				if logger != nil {
+					logger.Warn("audio registry skipped provider without template",
+						slog.String("provider", string(def.ClientType)),
+						slog.String("display_name", def.DisplayName))
+				}
+				continue
+			}
+			if logger != nil {
+				logger.Warn("audio registry failed to load provider template",
+					slog.String("provider", string(def.ClientType)),
+					slog.String("display_name", def.DisplayName),
+					slog.Any("error", err))
+			}
+			return fmt.Errorf("get provider by client type %s: %w", def.ClientType, err)
 		}
 
 		synced := 0

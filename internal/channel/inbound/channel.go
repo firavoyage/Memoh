@@ -58,14 +58,14 @@ type mediaIngestor interface {
 	channel.ContainerAttachmentIngester
 }
 
-// ttsSynthesizer synthesizes text to speech audio.
-type ttsSynthesizer interface {
+// speechSynthesizer synthesizes text to speech audio.
+type speechSynthesizer interface {
 	Synthesize(ctx context.Context, modelID string, text string, overrideCfg map[string]any) ([]byte, string, error)
 }
 
-// ttsModelResolver looks up the TTS model ID configured for a bot.
-type ttsModelResolver interface {
-	ResolveTtsModelID(ctx context.Context, botID string) (string, error)
+// speechModelResolver looks up the speech model ID configured for a bot.
+type speechModelResolver interface {
+	ResolveSpeechModelID(ctx context.Context, botID string) (string, error)
 }
 
 // TranscriptionResult is the minimal speech-to-text response shape needed by inbound routing.
@@ -101,29 +101,29 @@ type SessionResult struct {
 
 // ChannelInboundProcessor routes channel inbound messages to the chat gateway.
 type ChannelInboundProcessor struct {
-	runner           flow.Runner
-	routeResolver    RouteResolver
-	message          messagepkg.Writer
-	mediaService     mediaIngestor
-	reactor          channelReactor
-	commandHandler   *command.Handler
-	registry         *channel.Registry
-	logger           *slog.Logger
-	jwtSecret        string
-	tokenTTL         time.Duration
-	identity         *IdentityResolver
-	policy           PolicyService
-	dispatcher       *RouteDispatcher
-	acl              chatACL
-	observer         channel.StreamObserver
-	ttsService       ttsSynthesizer
-	ttsModelResolver ttsModelResolver
-	transcriber      transcriptionRecognizer
-	sttModelResolver transcriptionModelResolver
-	sessionEnsurer   SessionEnsurer
-	pipeline         *pipelinepkg.Pipeline
-	eventStore       *pipelinepkg.EventStore
-	discussDriver    *pipelinepkg.DiscussDriver
+	runner              flow.Runner
+	routeResolver       RouteResolver
+	message             messagepkg.Writer
+	mediaService        mediaIngestor
+	reactor             channelReactor
+	commandHandler      *command.Handler
+	registry            *channel.Registry
+	logger              *slog.Logger
+	jwtSecret           string
+	tokenTTL            time.Duration
+	identity            *IdentityResolver
+	policy              PolicyService
+	dispatcher          *RouteDispatcher
+	acl                 chatACL
+	observer            channel.StreamObserver
+	speechService       speechSynthesizer
+	speechModelResolver speechModelResolver
+	transcriber         transcriptionRecognizer
+	sttModelResolver    transcriptionModelResolver
+	sessionEnsurer      SessionEnsurer
+	pipeline            *pipelinepkg.Pipeline
+	eventStore          *pipelinepkg.EventStore
+	discussDriver       *pipelinepkg.DiscussDriver
 
 	// activeStreams maps "botID:routeID" to a context.CancelFunc for the
 	// currently running agent stream. Used by /stop to abort generation
@@ -205,14 +205,14 @@ func (p *ChannelInboundProcessor) SetStreamObserver(observer channel.StreamObser
 	p.observer = observer
 }
 
-// SetTtsService configures the TTS synthesizer and settings reader for handling
-// <speech> tag events (speech_delta) that require server-side audio synthesis.
-func (p *ChannelInboundProcessor) SetTtsService(synth ttsSynthesizer, modelResolver ttsModelResolver) {
+// SetSpeechService configures the speech synthesizer and settings reader for
+// handling <speech> tag events (speech_delta) that require server-side audio synthesis.
+func (p *ChannelInboundProcessor) SetSpeechService(synth speechSynthesizer, modelResolver speechModelResolver) {
 	if p == nil {
 		return
 	}
-	p.ttsService = synth
-	p.ttsModelResolver = modelResolver
+	p.speechService = synth
+	p.speechModelResolver = modelResolver
 }
 
 // SetTranscriptionService configures speech-to-text processing for inbound audio attachments.
@@ -2304,13 +2304,13 @@ func (p *ChannelInboundProcessor) synthesizeAndPushVoice(
 	outboundAssetRefs *[]conversation.OutboundAssetRef,
 	assetMu *sync.Mutex,
 ) {
-	if p.ttsService == nil || p.ttsModelResolver == nil {
+	if p.speechService == nil || p.speechModelResolver == nil {
 		if p.logger != nil {
 			p.logger.Warn("speech_delta received but TTS service not configured")
 		}
 		return
 	}
-	modelID, err := p.ttsModelResolver.ResolveTtsModelID(ctx, botID)
+	modelID, err := p.speechModelResolver.ResolveSpeechModelID(ctx, botID)
 	if err != nil || strings.TrimSpace(modelID) == "" {
 		if p.logger != nil {
 			p.logger.Warn("speech_delta: bot has no TTS model configured", slog.String("bot_id", botID))
@@ -2322,7 +2322,7 @@ func (p *ChannelInboundProcessor) synthesizeAndPushVoice(
 		if text == "" {
 			continue
 		}
-		audioData, contentType, synthErr := p.ttsService.Synthesize(ctx, modelID, text, nil)
+		audioData, contentType, synthErr := p.speechService.Synthesize(ctx, modelID, text, nil)
 		if synthErr != nil {
 			if p.logger != nil {
 				p.logger.Warn("speech synthesis failed", slog.String("bot_id", botID), slog.Any("error", synthErr))

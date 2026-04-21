@@ -425,17 +425,6 @@
     "synthesis": {
       "models": "语音合成模型"
     },
-    "transcription": {
-      "models": "语音识别模型",
-      "noModels": "暂无语音识别模型，可导入可用模型，或保留默认模板模型。",
-      "importModels": "导入识别模型",
-      "importSuccess": "识别模型导入成功",
-      "importFailed": "识别模型导入失败",
-      "test": {
-        "title": "测试识别",
-        "run": "开始识别"
-      }
-    },
     "advanced": {
       "title": "高级设置",
       "description": "这些字段通常对应底层服务商实现细节。大多数情况下保留默认值即可。"
@@ -462,7 +451,23 @@
   "transcription": {
     "title": "语音转写",
     "emptyTitle": "暂无转写提供方",
-    "emptyDescription": "添加转写提供方以为 Bot 启用语音转文字功能"
+    "emptyDescription": "添加转写提供方以为 Bot 启用语音转文字功能",
+    "models": "语音识别模型",
+    "noModels": "暂无语音识别模型，可导入可用模型，或保留默认模板模型。",
+    "importModels": "导入模型",
+    "importSuccess": "识别模型导入成功",
+    "importFailed": "识别模型导入失败",
+    "saveSuccess": "转写配置已保存",
+    "noCapabilities": "该模型暂无可用能力信息。",
+    "advanced": {
+      "title": "高级设置",
+      "description": "这些字段通常对应底层服务商实现细节。大多数情况下保留默认值即可。"
+    },
+    "test": {
+      "title": "测试识别",
+      "run": "开始识别",
+      "failed": "识别失败"
+    }
   },
   "email": {
     "title": "邮件提供方",
