@@ -374,7 +374,7 @@ const isSelf = computed(() =>
 )
 
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 
 const senderFallback = computed(() => {
@@ -472,9 +472,9 @@ const hasVisibleAssistantBlocks = computed(() =>
 )
 
 const relativeTimestamp = computed(() =>
-  formatRelativeTime(props.message.timestamp),
+  formatRelativeTime(props.message.timestamp, { locale: locale.value }),
 )
 const fullTimestamp = computed(() =>
-  formatDateTime(props.message.timestamp),
+  formatDateTime(props.message.timestamp, { locale: locale.value }),
 )
 </script>

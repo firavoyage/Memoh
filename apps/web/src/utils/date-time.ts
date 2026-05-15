@@ -1,6 +1,7 @@
 interface FormatDateOptions {
   fallback?: string
   invalidFallback?: string
+  locale?: string
 }
 
 function parseDate(value: string | null | undefined): Date | null {
@@ -29,7 +30,7 @@ export function formatDateTime(
   if (!value) return options.fallback ?? ''
   const parsed = parseDate(value)
   if (!parsed) return resolveInvalid(value, options)
-  return parsed.toLocaleString()
+  return parsed.toLocaleString(options.locale)
 }
 
 export function formatDate(
@@ -39,7 +40,7 @@ export function formatDate(
   if (!value) return options.fallback ?? ''
   const parsed = parseDate(value)
   if (!parsed) return resolveInvalid(value, options)
-  return parsed.toLocaleDateString()
+  return parsed.toLocaleDateString(options.locale)
 }
 
 export function formatDateTimeSeconds(
@@ -64,8 +65,8 @@ export function formatDateTimeSeconds(
  * "in 2 days".  Falls back to `toLocaleDateString()` for dates older than a
  * week.  Accepts either an ISO string or a `Date` object.
  *
- * Uses `Intl.RelativeTimeFormat` so the output language follows the browser
- * locale automatically — no hardcoded English strings.
+ * Uses `Intl.RelativeTimeFormat` so callers can align the output language with
+ * the app locale instead of relying on the browser's preferred locale.
  */
 export function formatRelativeTime(
   value: string | Date | null | undefined,
@@ -77,7 +78,7 @@ export function formatRelativeTime(
 
   const diffMs = date.getTime() - Date.now()
   const absDiffSec = Math.abs(diffMs) / 1000
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  const rtf = new Intl.RelativeTimeFormat(options.locale, { numeric: 'auto' })
 
   if (absDiffSec < 60) return rtf.format(Math.round(diffMs / 1000), 'second')
   if (absDiffSec < 3_600) return rtf.format(Math.round(diffMs / 60_000), 'minute')
@@ -85,5 +86,5 @@ export function formatRelativeTime(
   if (absDiffSec < 604_800) return rtf.format(Math.round(diffMs / 86_400_000), 'day')
 
   // Beyond a week: absolute date is more readable than "34 days ago"
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(options.locale)
 }

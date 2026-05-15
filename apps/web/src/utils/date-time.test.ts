@@ -125,6 +125,14 @@ describe('formatRelativeTime', () => {
     expect(result.length).toBeGreaterThan(0)
   })
 
+  it('uses an explicit locale for relative timestamps', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-01T12:00:00Z'))
+
+    expect(formatRelativeTime('2026-03-01T11:55:00Z', { locale: 'en' })).toBe('5 minutes ago')
+    expect(formatRelativeTime('2026-03-01T11:55:00Z', { locale: 'zh' })).toBe('5分钟前')
+  })
+
   it('falls back to toLocaleDateString for dates older than 7 days', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-03-01T12:00:00Z'))
