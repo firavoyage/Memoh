@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { LoaderCircle, FolderOpen, Folder, File, Download, SquarePen, Trash2 } from 'lucide-vue-next'
+import { ArchiveRestore, LoaderCircle, FolderOpen, Folder, File, Download, SquarePen, Trash2 } from 'lucide-vue-next'
 import {
+  Checkbox,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -10,22 +11,30 @@ import {
   ContextMenuTrigger,
 } from '@memohai/ui'
 import type { HandlersFsFileInfo } from '@memohai/sdk'
-import { formatFileSize, formatRelativeTime } from './utils'
+import { formatFileSize, formatRelativeTime, isArchiveFile } from './utils'
 
 const props = defineProps<{
   entries: HandlersFsFileInfo[]
   loading?: boolean
+  selectedPaths?: Set<string>
+  selectionMode?: boolean
+  selectionDisabled?: boolean
 }>()
 
 const emit = defineEmits<{
   navigate: [path: string]
   open: [entry: HandlersFsFileInfo]
   download: [entry: HandlersFsFileInfo]
+  extract: [entry: HandlersFsFileInfo]
   rename: [entry: HandlersFsFileInfo]
   delete: [entry: HandlersFsFileInfo]
+  toggleSelect: [entry: HandlersFsFileInfo, selected: boolean]
+  selectAll: [selected: boolean]
 }>()
 
 const { t } = useI18n()
+
+type CheckboxState = boolean | 'indeterminate'
 
 const sortedEntries = computed(() => {
   const dirs = props.entries
@@ -37,12 +46,48 @@ const sortedEntries = computed(() => {
   return [...dirs, ...files]
 })
 
+const selectableEntries = computed(() => sortedEntries.value.filter(entry => !!entry.path))
+
+const selectedCount = computed(() => selectableEntries.value.filter(entry => isSelected(entry)).length)
+
+const allSelectedState = computed(() => {
+  if (selectableEntries.value.length === 0 || selectedCount.value === 0) return false
+  if (selectedCount.value === selectableEntries.value.length) return true
+  return 'indeterminate'
+})
+
 function handleClick(entry: HandlersFsFileInfo) {
+  if (props.selectionMode) {
+    toggleEntry(entry)
+    return
+  }
+
   if (entry.isDir) {
     emit('navigate', entry.path ?? '')
   } else {
     emit('open', entry)
   }
+}
+
+function isSelected(entry: HandlersFsFileInfo) {
+  return props.selectedPaths?.has(entry.path ?? '') ?? false
+}
+
+function setEntrySelected(entry: HandlersFsFileInfo, selected: boolean) {
+  if (props.selectionDisabled || !entry.path) return
+  emit('toggleSelect', entry, selected)
+}
+
+function toggleEntry(entry: HandlersFsFileInfo) {
+  setEntrySelected(entry, !isSelected(entry))
+}
+
+function toggleAll(checked: CheckboxState) {
+  emit('selectAll', checked === true)
+}
+
+function handleCheckboxUpdate(entry: HandlersFsFileInfo, checked: CheckboxState) {
+  setEntrySelected(entry, checked === true)
 }
 </script>
 
@@ -71,6 +116,18 @@ function handleClick(entry: HandlersFsFileInfo) {
     <div v-else>
       <!-- Header row -->
       <div class="flex items-center border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+        <div
+          v-if="selectionMode"
+          class="mr-2 flex w-5 shrink-0 items-center justify-center"
+          @click.stop
+        >
+          <Checkbox
+            :model-value="allSelectedState"
+            :disabled="selectionDisabled || selectableEntries.length === 0"
+            :aria-label="t('bots.files.selectAll')"
+            @update:model-value="toggleAll"
+          />
+        </div>
         <div class="flex-1">
           {{ t('bots.files.name') }}
         </div>
@@ -89,9 +146,21 @@ function handleClick(entry: HandlersFsFileInfo) {
       >
         <ContextMenuTrigger as-child>
           <div
-            class="flex items-center border-b border-border/50 cursor-pointer px-3 py-2 text-xs transition-colors hover:bg-muted/50"
+            class="group flex cursor-pointer items-center border-b border-border/50 px-3 py-2 text-xs transition-colors hover:bg-muted/50"
             @click="handleClick(entry)"
           >
+            <div
+              v-if="selectionMode"
+              class="mr-2 flex w-5 shrink-0 items-center justify-center"
+              @click.stop
+            >
+              <Checkbox
+                :model-value="isSelected(entry)"
+                :disabled="selectionDisabled || !entry.path"
+                :aria-label="t('bots.files.selectItem', { name: entry.name ?? '' })"
+                @update:model-value="checked => handleCheckboxUpdate(entry, checked)"
+              />
+            </div>
             <div class="flex flex-1 items-center gap-2 min-w-0">
               <component
                 :is="entry.isDir ? Folder : File"
@@ -109,14 +178,20 @@ function handleClick(entry: HandlersFsFileInfo) {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem
-            v-if="!entry.isDir"
-            @select="emit('download', entry)"
-          >
+          <ContextMenuItem @select="emit('download', entry)">
             <Download
               class="mr-2 size-3.5"
             />
             {{ t('bots.files.download') }}
+          </ContextMenuItem>
+          <ContextMenuItem
+            v-if="!entry.isDir && isArchiveFile(entry.name)"
+            @select="emit('extract', entry)"
+          >
+            <ArchiveRestore
+              class="mr-2 size-3.5"
+            />
+            {{ t('bots.files.extract') }}
           </ContextMenuItem>
           <ContextMenuItem @select="emit('rename', entry)">
             <SquarePen
